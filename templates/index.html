@@ -6,26 +6,9 @@
 <title>Agent Office</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: {
-        'ao': {
-          bg:      '#0a0a12',
-          card:    '#111120',
-          border:  '#1e1e32',
-          hover:   '#1a1a2e',
-        }
-      }
-    }
-  }
-}
-</script>
 <style>
-  body { background:#0a0a12; }
-  /* Markdown in dark cards */
-  .md-content { color: #b0b8d0; font-size:13px; line-height:1.75; }
+  body { background:#0b0b14; }
+  .md-content { color:#b0b8d0; font-size:13px; line-height:1.75; }
   .md-content strong { color:#e2e8f0; font-weight:700; }
   .md-content h1,.md-content h2,.md-content h3 { color:#e2e8f0; font-weight:700; margin:10px 0 4px; }
   .md-content h1 { font-size:16px; } .md-content h2 { font-size:14px; } .md-content h3 { font-size:13px; }
@@ -33,311 +16,346 @@ tailwind.config = {
   .md-content ul,.md-content ol { padding-left:18px; margin-bottom:8px; }
   .md-content li { margin-bottom:3px; }
   .md-content code { background:#1e1e32; color:#c4b5fd; padding:2px 5px; border-radius:4px; font-size:11px; font-family:monospace; }
-  .md-content pre { background:#050508; border:1px solid #1e1e32; border-radius:8px; padding:10px 12px; margin:6px 0; overflow-x:auto; }
+  .md-content pre { background:#06060e; border:1px solid #1e1e32; border-radius:10px; padding:12px 14px; margin:8px 0; overflow-x:auto; }
   .md-content pre code { background:none; padding:0; color:#a8b8d0; font-size:11.5px; }
   .md-content blockquote { border-left:3px solid #6d28d9; padding-left:12px; color:#888aaa; margin:6px 0; }
   .md-content hr { border:none; border-top:1px solid #1e1e32; margin:10px 0; }
   .md-content table { width:100%; border-collapse:collapse; font-size:12px; }
   .md-content th,.md-content td { padding:6px 10px; border-bottom:1px solid #1e1e32; text-align:left; }
   .md-content th { background:#111120; color:#e2e8f0; font-weight:700; }
-  /* Animations */
-  @keyframes bob    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
-  @keyframes think  { 0%,100%{transform:rotate(-6deg) translateY(-2px)} 50%{transform:rotate(6deg) translateY(-4px)} }
-  @keyframes work   { from{transform:translateX(-2px) rotate(-3deg)} to{transform:translateX(2px) rotate(3deg)} }
-  @keyframes sweep  { 0%{transform:translateX(-200%)} 100%{transform:translateX(350%)} }
-  .anim-bob   { animation:bob   4s ease-in-out infinite; }
-  .anim-think { animation:think 2s ease-in-out infinite; filter:drop-shadow(0 0 8px rgba(167,139,250,.6)); }
-  .anim-work  { animation:work  .22s ease-in-out infinite alternate; }
-  .anim-sweep { animation:sweep 1.6s ease-in-out infinite; }
-  /* Scrollbar */
-  ::-webkit-scrollbar { width:4px; height:4px; }
+  @keyframes bob   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+  @keyframes think { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+  @keyframes work  { from{transform:translateX(-2px) rotate(-2deg)} to{transform:translateX(2px) rotate(2deg)} }
+  .anim-bob   { animation:bob   3.5s ease-in-out infinite; }
+  .anim-think { animation:think 1.8s ease-in-out infinite; }
+  .anim-work  { animation:work  .25s ease-in-out infinite alternate; }
+  ::-webkit-scrollbar { width:3px; height:3px; }
   ::-webkit-scrollbar-thumb { background:#1e1e32; border-radius:2px; }
   ::-webkit-scrollbar-track { background:transparent; }
 </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden text-slate-200" x-data="app()" x-init="init()">
+<body class="h-screen flex overflow-hidden text-slate-200" x-data="app()" x-init="init()">
 
-<!-- ── HEADER ─────────────────────────────────────────────────── -->
-<header class="h-12 flex-shrink-0 flex items-center justify-between px-5 bg-[#0d0d1a] border-b border-[#1e1e32]">
-  <div class="flex items-center gap-2.5">
-    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-violet-400 flex items-center justify-center text-sm shadow-lg shadow-violet-500/30">✦</div>
-    <span class="font-bold text-sm tracking-tight">Agent Office</span>
-  </div>
-  <div class="flex items-center gap-3">
-    <div :class="wsLive
-        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-        : 'bg-red-500/10 border-red-500/30 text-red-400'"
-         class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold border">
-      <div :class="wsLive ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'" class="w-1.5 h-1.5 rounded-full"></div>
-      <span x-text="wsLive ? 'LIVE' : 'OFFLINE'"></span>
+<!-- ═══════════════════════════════════════════════════════
+     SIDEBAR — contacts list
+═══════════════════════════════════════════════════════ -->
+<aside class="w-[260px] flex-shrink-0 flex flex-col bg-[#0d0d1a] border-r border-[#181828]">
+
+  <!-- Logo bar -->
+  <div class="h-14 flex items-center justify-between px-4 border-b border-[#181828] flex-shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-violet-400 flex items-center justify-center text-sm font-black shadow-lg shadow-violet-500/30">✦</div>
+      <span class="font-bold text-sm tracking-tight">Agent Office</span>
     </div>
-    <div class="text-xs text-slate-600 font-mono tabular-nums" x-text="clock"></div>
+    <div class="flex items-center gap-1.5">
+      <div :class="wsLive ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'" class="w-2 h-2 rounded-full"></div>
+      <span class="text-[10px] font-bold" :class="wsLive ? 'text-emerald-500' : 'text-red-500'" x-text="wsLive ? 'LIVE' : 'OFF'"></span>
+    </div>
   </div>
-</header>
 
-<!-- ── WORKSPACE ───────────────────────────────────────────────── -->
-<div class="flex-shrink-0 bg-[#0d0d1a] border-b border-[#1e1e32] px-4 pt-3 pb-2.5">
-  <div class="text-[9px] font-black tracking-[1.5px] uppercase text-slate-700 mb-2">Рабочая зона</div>
-  <div class="flex gap-2 overflow-x-auto pb-1">
+  <!-- New task button -->
+  <div class="px-3 py-2.5 border-b border-[#181828] flex-shrink-0">
+    <button @click="focusInput()"
+            class="w-full flex items-center gap-2 bg-violet-600/12 hover:bg-violet-600/22 border border-violet-500/22 rounded-xl px-3.5 py-2.5 text-[13px] text-violet-300 transition-all">
+      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span>Новая задача</span>
+    </button>
+  </div>
+
+  <!-- Contacts scroll area -->
+  <div class="flex-1 overflow-y-auto">
+
+    <!-- КОМАНДА section -->
+    <div class="px-4 pt-4 pb-1.5">
+      <span class="text-[9px] font-black tracking-[1.5px] uppercase text-slate-700">Команда</span>
+    </div>
+
+    <!-- "All messages" contact -->
+    <button @click="activeAgent = null"
+            :class="activeAgent === null
+              ? 'bg-[#111120] border-[#252540]'
+              : 'border-transparent hover:bg-[#0f0f1b]'"
+            class="w-full flex items-center gap-3 px-3 py-2.5 mx-1.5 rounded-2xl border transition-all mb-0.5 text-left" style="width:calc(100% - 12px)">
+      <div class="w-10 h-10 rounded-full bg-[#1a1a2e] flex items-center justify-center text-[18px] flex-shrink-0">📋</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] font-semibold text-slate-200">Все сообщения</div>
+        <div class="text-[11px] text-slate-600 truncate"
+             x-text="messages.length > 0 ? lastMsgPreview(null) : 'Нет сообщений'"></div>
+      </div>
+      <div x-show="messages.length > 0" class="text-[10px] text-slate-700 flex-shrink-0 tabular-nums" x-text="lastMsgTime(null)"></div>
+    </button>
+
+    <!-- Agent contacts -->
     <template x-for="a in agents" :key="a.key">
-      <div :class="{
-              'border-violet-500/40 bg-violet-500/5 shadow-[0_0_20px_rgba(139,92,246,.12)]': a.status==='thinking',
-              'shadow-[0_0_24px_var(--glow)]':  a.status==='working',
-              'border-emerald-500/35': a.status==='done',
-              'border-[#1e1e32]':      a.status==='idle',
-           }"
-           :style="`--glow: ${AGENTS[a.key]?.glow||'rgba(255,255,255,.1)'}`"
-           class="flex-1 min-w-[110px] max-w-[150px] rounded-xl border bg-[#111120] pt-3 pb-2.5 px-2.5 flex flex-col items-center relative overflow-hidden transition-all duration-300 cursor-default">
-
-        <!-- color top stripe -->
-        <div class="absolute top-0 left-0 right-0 h-[3px] opacity-60 rounded-t-xl"
-             :style="`background:${AGENTS[a.key]?.color||'#888'}`"></div>
-
-        <!-- emoji zone -->
-        <div class="relative w-[68px] h-[68px] flex items-end justify-center mb-1">
-          <!-- glow -->
-          <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-12 h-3 rounded-full blur-md transition-opacity duration-400"
-               :style="`background:${AGENTS[a.key]?.color||'#888'};opacity:${a.status==='working'?.7:a.status==='thinking'?.45:0}`"></div>
-          <!-- thought dots -->
-          <div :class="a.status==='thinking' ? 'opacity-100' : 'opacity-0'"
-               class="absolute top-0 right-0 flex gap-0.5 items-center bg-violet-500/20 border border-violet-500/35 rounded-full px-1.5 py-1 transition-opacity duration-300">
-            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out infinite"></div>
-            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out .18s infinite"></div>
-            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out .36s infinite"></div>
+      <button @click="activeAgent = a.key"
+              :class="activeAgent === a.key
+                ? 'bg-[#111120] border-[#252540]'
+                : 'border-transparent hover:bg-[#0f0f1b]'"
+              class="w-full flex items-center gap-3 px-3 py-2.5 mx-1.5 rounded-2xl border transition-all mb-0.5 text-left" style="width:calc(100% - 12px)">
+        <!-- Avatar with status ring -->
+        <div class="relative flex-shrink-0">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+               :style="`background:${AGENTS[a.key]?.color||'#888'}1a; box-shadow: 0 0 0 2px ${a.status!=='idle' ? (AGENTS[a.key]?.color||'#888')+'40' : 'transparent'}`">
+            <span :class="{
+                    'anim-bob':   a.status==='idle',
+                    'anim-think': a.status==='thinking',
+                    'anim-work':  a.status==='working',
+                  }"
+                  class="text-[20px] leading-none"
+                  x-text="AGENTS[a.key]?.emoji||'🤖'"></span>
           </div>
-          <!-- emoji -->
+          <!-- Status dot -->
           <div :class="{
-                 'anim-bob':   a.status==='idle',
-                 'anim-think': a.status==='thinking',
-                 'anim-work':  a.status==='working',
+                 'bg-emerald-400': a.status==='working' || a.status==='done',
+                 'bg-violet-400':  a.status==='thinking',
+                 'bg-slate-700':   a.status==='idle',
                }"
-               class="text-[38px] leading-none relative z-10"
-               x-text="AGENTS[a.key]?.emoji||'🤖'"></div>
+               :style="a.status==='thinking' ? 'animation:pulse 1s ease-in-out infinite' : ''"
+               class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#0d0d1a] transition-colors duration-300"></div>
         </div>
 
-        <!-- name + badge -->
-        <div class="flex items-center gap-1 mt-0.5">
-          <span class="text-[11.5px] font-bold text-slate-200" x-text="AGENTS[a.key]?.name||a.key"></span>
-          <span :class="{
-                  'bg-slate-700/60 text-slate-600':             a.status==='idle',
-                  'bg-violet-500/20 text-violet-300 animate-pulse': a.status==='thinking',
-                  'bg-emerald-500/20 text-emerald-400':          a.status==='working'||a.status==='done',
-                }"
-                class="text-[7.5px] font-black tracking-[.5px] uppercase px-1.5 py-[2px] rounded-full"
-                x-text="STATUS_RU[a.status]||a.status.toUpperCase()"></span>
+        <!-- Name + last message -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <span class="text-[13px] font-semibold text-slate-200 truncate" x-text="AGENTS[a.key]?.name"></span>
+            <span x-show="a.status !== 'idle'"
+                  :class="{
+                    'text-violet-400 bg-violet-400/12': a.status==='thinking',
+                    'text-emerald-400 bg-emerald-400/12': a.status==='working'||a.status==='done',
+                  }"
+                  class="text-[8px] font-black tracking-wider uppercase px-1.5 py-[2px] rounded-full flex-shrink-0"
+                  x-text="STATUS_RU[a.status]||''"></span>
+          </div>
+          <div class="text-[11px] text-slate-600 truncate"
+               x-text="lastMsgPreview(a.key) || (a.status!=='idle' && a.task ? a.task : AGENTS[a.key]?.role||'')"></div>
         </div>
 
-        <div class="text-[9px] text-slate-700 mt-0.5" x-text="AGENTS[a.key]?.role||''"></div>
-        <div class="text-[9px] mt-1 truncate w-full text-center px-1 min-h-[12px]"
-             :class="a.status!=='idle' ? 'text-slate-400' : 'text-slate-700'"
-             x-text="a.status!=='idle'&&a.task ? a.task : 'Свободен'"></div>
+        <!-- Time -->
+        <div x-show="lastMsgTime(a.key)" class="text-[10px] text-slate-700 flex-shrink-0 tabular-nums" x-text="lastMsgTime(a.key)"></div>
+      </button>
+    </template>
 
-        <!-- progress bar -->
-        <div class="w-full h-[2px] bg-[#1e1e32] rounded-full mt-2 overflow-hidden">
-          <div :class="{
-                 'w-0 bg-transparent':     a.status==='idle',
-                 'anim-sweep w-[40%] bg-violet-400': a.status==='thinking',
-                 'bg-current':             a.status==='working',
-                 'w-full bg-emerald-400':  a.status==='done',
-               }"
-               :style="`color:${AGENTS[a.key]?.color};${a.status==='working'?'width:'+(a.progress||50)+'%':''}`"
-               class="h-full rounded-full transition-all duration-500"></div>
+    <!-- ЗАДАЧИ section -->
+    <div class="px-4 pt-4 pb-1.5 mt-1">
+      <span class="text-[9px] font-black tracking-[1.5px] uppercase text-slate-700">Задачи</span>
+    </div>
+
+    <!-- Task cards -->
+    <template x-for="t in allTasks.slice(0, 6)" :key="t.id">
+      <div class="mx-2 mb-1.5 rounded-xl bg-[#0f0f1a] border border-[#181828] px-3 py-2.5 hover:border-[#222236] transition-colors cursor-default">
+        <div class="flex items-start gap-2">
+          <div class="mt-[3px] flex-shrink-0">
+            <div :class="{
+                   'bg-yellow-400': t.status==='pending',
+                   'bg-violet-400 animate-pulse': t.status==='processing',
+                   'bg-emerald-400': t.status==='done',
+                 }" class="w-1.5 h-1.5 rounded-full"></div>
+          </div>
+          <span class="text-[11.5px] text-slate-300 leading-snug" x-text="(t.content||'').slice(0,55)+((t.content||'').length>55?'…':'')"></span>
+        </div>
+        <div class="text-[10px] text-slate-700 mt-1 pl-3.5" x-text="fmtDate(t.created_at)"></div>
+      </div>
+    </template>
+    <div x-show="allTasks.length===0" class="px-4 py-2 text-[11px] text-slate-800">Задач нет</div>
+
+    <!-- Clock at bottom -->
+    <div class="px-4 pb-4 pt-3 text-[10px] font-mono tabular-nums text-slate-800 text-center" x-text="clock"></div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════════
+     CHAT AREA
+═══════════════════════════════════════════════════════ -->
+<div class="flex-1 flex flex-col overflow-hidden bg-[#0b0b14]">
+
+  <!-- Chat header -->
+  <div class="h-14 flex-shrink-0 flex items-center gap-3 px-5 bg-[#0d0d1a] border-b border-[#181828]">
+
+    <!-- ALL header -->
+    <template x-if="activeAgent === null">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="w-9 h-9 rounded-full bg-[#1a1a2e] flex items-center justify-center text-base flex-shrink-0">📋</div>
+        <div class="min-w-0">
+          <div class="font-bold text-[14px]">Все сообщения</div>
+          <div class="text-[11px] text-slate-600" x-text="messages.length + ' сообщений · ' + agents.filter(a=>a.status!=='idle').length + ' агентов активно'"></div>
         </div>
       </div>
     </template>
-  </div>
-</div>
 
-<!-- ── EVENT TICKER ────────────────────────────────────────────── -->
-<div class="flex-shrink-0 h-8 bg-[#07070f] border-b border-[#1e1e32] flex items-center overflow-hidden">
-  <div class="flex-shrink-0 h-full flex items-center gap-1.5 px-3 border-r border-[#1e1e32] text-[9px] font-black tracking-[1.4px] uppercase text-violet-500">
-    <div class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse"></div>
-    СОБЫТИЯ
-  </div>
-  <div class="flex-1 overflow-hidden px-3 [mask-image:linear-gradient(to_right,transparent_0%,black_5%,black_92%,transparent_100%)]">
-    <div class="flex gap-2 items-center whitespace-nowrap">
-      <template x-if="tickerEvents.length === 0">
-        <span class="text-xs text-slate-700">Ожидание активности агентов…</span>
-      </template>
-      <template x-for="(ev,i) in [...tickerEvents].reverse()" :key="i">
-        <span :style="`color:${ev.color};background:${ev.color}18;border-color:${ev.color}30`"
-              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold">
-          <span x-text="ev.emoji"></span>
-          <b x-text="ev.name"></b>
-          <span x-text="ev.verb"></span>
-        </span>
-      </template>
-    </div>
-  </div>
-</div>
-
-<!-- ── MAIN ────────────────────────────────────────────────────── -->
-<div class="flex-1 flex overflow-hidden">
-
-  <!-- KANBAN -->
-  <div class="w-[270px] flex-shrink-0 flex flex-col bg-[#0d0d1a] border-r border-[#1e1e32]">
-    <div class="px-4 py-3 border-b border-[#1e1e32]">
-      <div class="text-[10px] font-black tracking-[1.2px] uppercase text-slate-700">Задачи</div>
-    </div>
-    <div class="flex-1 overflow-y-auto p-2.5 flex flex-col gap-4">
-
-      <template x-for="col in kanbanCols" :key="col.key">
-        <div>
-          <div class="flex items-center gap-2 px-1 py-1 sticky top-0 bg-[#0d0d1a] z-10">
-            <div class="w-2 h-2 rounded-full" :style="`background:${col.color}`"></div>
-            <span class="text-[10px] font-black tracking-[.6px] uppercase" :style="`color:${col.color}`" x-text="col.label"></span>
-            <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#1e1e32] text-slate-500" x-text="col.tasks.length"></span>
-          </div>
-          <div class="h-px bg-[#1e1e32] mx-1 mb-1.5"></div>
-          <div x-show="col.tasks.length===0" class="text-xs text-slate-700 text-center py-1">пусто</div>
-          <template x-for="t in col.tasks" :key="t.id">
-            <div :style="col.key==='active' ? 'border-color:'+col.color+'33' : ''"
-                 class="bg-[#111120] border border-[#1e1e32] rounded-xl p-2.5 mb-1.5 hover:border-slate-600 transition-colors">
-              <div class="text-[12.5px] text-slate-200 leading-snug" x-text="t.content.slice(0,100)+(t.content.length>100?'…':'')"></div>
-              <div class="text-[10px] text-slate-600 mt-1.5" x-text="fmtDate(t.created_at)"></div>
-              <div x-show="t.summary" class="text-[11px] text-slate-400 mt-1 leading-snug" x-text="t.summary?t.summary.slice(0,80):''"></div>
-            </div>
-          </template>
+    <!-- Single agent header -->
+    <template x-if="activeAgent !== null">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center text-[18px] relative flex-shrink-0"
+             :style="`background:${AGENTS[activeAgent]?.color||'#888'}1a`">
+          <span :class="{
+                  'anim-bob':   activeAgentObj?.status==='idle',
+                  'anim-think': activeAgentObj?.status==='thinking',
+                  'anim-work':  activeAgentObj?.status==='working',
+                }"
+                x-text="AGENTS[activeAgent]?.emoji||'🤖'"></span>
         </div>
-      </template>
-    </div>
+        <div class="min-w-0">
+          <div class="font-bold text-[14px]" x-text="AGENTS[activeAgent]?.name"></div>
+          <div class="text-[11px] flex items-center gap-1.5">
+            <span class="text-slate-600" x-text="AGENTS[activeAgent]?.role"></span>
+            <span class="text-slate-800">·</span>
+            <span :class="{
+                    'text-violet-400': activeAgentObj?.status==='thinking',
+                    'text-emerald-400': activeAgentObj?.status==='working'||activeAgentObj?.status==='done',
+                    'text-slate-700': activeAgentObj?.status==='idle',
+                  }"
+                  x-text="STATUS_RU[activeAgentObj?.status||'idle']"></span>
+          </div>
+        </div>
+        <!-- Active task pill -->
+        <div x-show="activeAgentObj?.task && activeAgentObj?.status!=='idle'"
+             class="ml-3 hidden sm:block max-w-[280px] truncate text-[11px] text-slate-500 bg-[#111120] border border-[#1e1e32] rounded-full px-3 py-1"
+             x-text="activeAgentObj?.task"></div>
+      </div>
+    </template>
   </div>
 
-  <!-- FEED -->
-  <div class="flex-1 flex flex-col overflow-hidden bg-[#0a0a12]">
-    <div class="px-5 py-3 border-b border-[#1e1e32] flex-shrink-0">
-      <div class="text-[10px] font-black tracking-[1.2px] uppercase text-slate-700">Активность</div>
-    </div>
-    <div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2.5" x-ref="feed">
+  <!-- Messages feed -->
+  <div class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2" x-ref="feed">
 
-      <!-- empty state -->
-      <div x-show="messages.length===0" class="flex-1 flex flex-col items-center justify-center h-full opacity-[.18]">
-        <div class="text-[36px] mb-2">✦</div>
-        <div class="text-base font-bold">Команда готова</div>
-        <div class="text-sm text-slate-400 text-center mt-1 max-w-xs leading-relaxed">Напишите задачу — менеджер распределит её между агентами</div>
+    <!-- Empty state -->
+    <div x-show="filteredMessages.length === 0"
+         class="flex-1 flex flex-col items-center justify-center h-full" style="opacity:.15">
+      <div class="text-5xl mb-3">✦</div>
+      <div class="text-[15px] font-bold">
+        <span x-show="activeAgent === null">Команда готова к работе</span>
+        <span x-show="activeAgent !== null" x-text="AGENTS[activeAgent]?.name + ' ещё молчит'"></span>
       </div>
+      <div class="text-sm text-slate-400 mt-1">
+        <span x-show="activeAgent === null">Введите задачу ниже — менеджер распределит её по агентам</span>
+        <span x-show="activeAgent !== null">Сообщения появятся здесь, когда агент получит задачу</span>
+      </div>
+    </div>
 
-      <template x-for="(msg, idx) in messages" :key="idx">
-        <div>
+    <template x-for="(msg, idx) in filteredMessages" :key="idx">
+      <div>
 
-          <!-- User bubble -->
-          <div x-show="msg.role==='user'" class="flex flex-col items-end gap-1">
-            <div class="text-[10px] text-slate-700" x-text="msg.time"></div>
-            <div class="max-w-[65%] bg-gradient-to-br from-violet-600 to-purple-700 text-white rounded-[18px] rounded-tr-[4px] px-4 py-2.5 text-[13.5px] leading-relaxed shadow-lg shadow-violet-600/20"
-                 x-text="msg.content"></div>
-          </div>
+        <!-- ─── User message ─── -->
+        <div x-show="msg.role === 'user'" class="flex flex-col items-end gap-1 mb-1">
+          <div class="text-[10px] text-slate-700 pr-1">Вы · <span x-text="msg.time"></span></div>
+          <div class="max-w-[58%] bg-gradient-to-br from-violet-600 to-violet-800 text-white rounded-[20px] rounded-tr-[5px] px-4 py-3 text-[13.5px] leading-relaxed shadow-lg shadow-violet-500/15"
+               x-text="msg.content"></div>
+        </div>
 
-          <!-- Manager plan -->
-          <div x-show="msg.role==='manager' && isPlan(msg.content)"
-               class="flex items-start gap-2.5 bg-violet-500/8 border border-violet-500/18 border-l-[3px] border-l-violet-500 rounded-xl p-3 text-[13px]">
-            <span class="font-bold text-violet-400 flex-shrink-0">🎯 Manager</span>
-            <span class="flex-1 text-slate-300 leading-relaxed" x-text="stripPlan(msg.content)"></span>
-            <span class="flex-shrink-0 text-[10px] text-slate-600 mt-0.5" x-text="msg.time"></span>
-          </div>
+        <!-- ─── Agent message ─── -->
+        <div x-show="msg.role !== 'user'" class="flex items-start gap-3 mb-1">
 
-          <!-- Agent result card — always expanded -->
-          <div x-show="msg.role!=='user' && !(msg.role==='manager' && isPlan(msg.content))"
-               :style="`border-left-color:${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}`"
-               class="bg-[#111120] border border-[#1e1e32] border-l-[3px] rounded-xl overflow-hidden hover:border-slate-700 transition-colors">
-            <!-- card header -->
-            <div class="flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer select-none"
-                 :style="`background:linear-gradient(90deg,${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}12 0%,transparent 60%)`"
-                 @click="msg.open = !msg.open">
-              <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[15px] flex-shrink-0"
-                   :style="`background:${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}22`"
-                   x-text="msg.emoji||AGENTS[msg.role]?.emoji||'🤖'"></div>
-              <span class="text-[13px] font-bold flex-shrink-0"
+          <!-- Avatar — shown in "All" view -->
+          <div x-show="activeAgent === null"
+               class="w-9 h-9 rounded-full flex items-center justify-center text-[17px] flex-shrink-0 mt-0.5"
+               :style="`background:${msg.color||AGENTS[msg.role]?.color||'#888'}1a`"
+               x-text="msg.emoji||AGENTS[msg.role]?.emoji||'🤖'"></div>
+
+          <!-- Bubble -->
+          <div class="flex-1 min-w-0 max-w-[80%]">
+            <!-- Sender name + time (All view) -->
+            <div x-show="activeAgent === null" class="flex items-center gap-2 mb-1.5">
+              <span class="text-[12px] font-bold"
                     :style="`color:${msg.color||AGENTS[msg.role]?.color||'#a78bfa'}`"
                     x-text="msg.name||AGENTS[msg.role]?.name||msg.role"></span>
-              <span class="flex-1 text-xs text-slate-500 truncate min-w-0"
-                    x-text="(msg.content||'').replace(/[#*`|\n]/g,' ').replace(/\s+/g,' ').trim().slice(0,90)"></span>
-              <span class="text-[10px] text-slate-600 flex-shrink-0 tabular-nums" x-text="msg.time"></span>
-              <span class="text-[10px] text-slate-600 flex-shrink-0 transition-transform duration-200 ml-1"
-                    :class="msg.open!==false?'rotate-180':''">▾</span>
+              <span class="text-[10px] text-slate-700 tabular-nums" x-text="msg.time"></span>
             </div>
-            <!-- card body -->
-            <div x-show="msg.open!==false" class="px-4 pb-4 pt-3 border-t border-[#1e1e32]">
-              <div class="md-content" x-html="renderMd(msg.content)"></div>
+
+            <!-- Card bubble -->
+            <div class="bg-[#111120] border border-[#1e1e32] rounded-[18px] rounded-tl-[5px] overflow-hidden"
+                 :style="`border-left: 3px solid ${msg.color||AGENTS[msg.role]?.color||'#6d28d9'}55`">
+              <!-- Time badge (individual agent view) -->
+              <div x-show="activeAgent !== null"
+                   class="flex items-center gap-2 px-4 pt-3 pb-0">
+                <span class="text-[10px] tabular-nums text-slate-700" x-text="msg.time"></span>
+              </div>
+              <!-- Content -->
+              <div class="px-4 pt-2.5 pb-4">
+                <div class="md-content" x-html="renderMd(msg.content)"></div>
+              </div>
             </div>
           </div>
-
         </div>
-      </template>
-    </div>
+
+      </div>
+    </template>
   </div>
 
-</div>
+  <!-- Input bar -->
+  <div class="flex-shrink-0 border-t border-[#181828] bg-[#0d0d1a] px-4 py-3 flex items-end gap-2.5">
+    <!-- Mic button -->
+    <button @click="toggleMic()" title="Голосовой ввод"
+            :class="micActive
+              ? 'bg-red-500/15 border-red-500/35 text-red-400 animate-pulse'
+              : 'bg-[#111120] border-[#1e1e32] text-slate-600 hover:text-slate-300 hover:bg-[#161626]'"
+            class="w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
 
-<!-- ── INPUT ───────────────────────────────────────────────────── -->
-<div class="flex-shrink-0 border-t border-[#1e1e32] bg-[#0d0d1a] px-4 py-3 flex items-end gap-3">
-  <button @click="toggleMic()" title="Голосовой ввод"
-          :class="micActive
-            ? 'bg-red-500/15 border-red-500/35 text-red-400 animate-pulse'
-            : 'bg-[#111120] border-[#1e1e32] text-slate-500 hover:text-slate-300 hover:bg-[#1a1a2e]'"
-          class="w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 transition-all">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-    </svg>
-  </button>
-
-  <div class="flex-1 flex flex-col gap-1.5">
-    <div class="flex items-end gap-2 bg-[#111120] border border-[#1e1e32] rounded-xl px-4 py-2.5 transition-all focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/15">
+    <!-- Text input wrapper -->
+    <div class="flex-1 flex items-end gap-2 bg-[#111120] border border-[#1e1e32] rounded-2xl px-4 py-2.5 transition-all focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/10">
       <textarea x-ref="ta" x-model="inputText"
                 @keydown.ctrl.enter.prevent="sendTask()"
-                @input="resizeTA()"
-                rows="1"
-                placeholder="Опишите задачу или зажмите микрофон…"
-                class="flex-1 bg-transparent border-none outline-none text-[14px] text-slate-100 placeholder-slate-700 resize-none min-h-[22px] max-h-[90px] leading-relaxed font-sans"></textarea>
+                @input="resizeTA()" rows="1"
+                placeholder="Опишите задачу для команды… (Ctrl+Enter)"
+                class="flex-1 bg-transparent border-none outline-none text-[14px] text-slate-100 placeholder-slate-700 resize-none min-h-[22px] max-h-[100px] leading-relaxed"></textarea>
       <button @click="sendTask()"
-              class="w-8 h-8 rounded-lg bg-violet-600 hover:bg-violet-500 active:scale-90 flex items-center justify-center flex-shrink-0 transition-all">
+              :class="inputText.trim() ? 'bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-600/25' : 'bg-[#1e1e32] text-slate-700 cursor-default'"
+              class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all active:scale-90">
         <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
           <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
         </svg>
       </button>
     </div>
-    <div class="text-[10px] text-slate-800 text-center">Ctrl+Enter · микрофон для голоса · ответы приходят автоматически</div>
   </div>
+
 </div>
 
-<!-- ── ALPINE APP ──────────────────────────────────────────────── -->
+<!-- ═══════════════════════════════════════════════════════
+     ALPINE APP
+═══════════════════════════════════════════════════════ -->
 <script>
 function app() {
   return {
 
-    /* ─── State ──────────────────────────────────────── */
-    wsLive:       false,
-    clock:        '00:00:00',
-    agents:       [],
-    messages:     [],
-    allTasks:     [],
-    tickerEvents: [],
-    inputText:    '',
-    micActive:    false,
-    ws:           null,
+    /* ─── Core state ──────────────────────────────────── */
+    wsLive:      false,
+    clock:       '00:00:00',
+    agents:      [],
+    messages:    [],
+    allTasks:    [],
+    inputText:   '',
+    micActive:   false,
+    ws:          null,
+    activeAgent: null,   // null = show all; string = agent key
 
-    /* ─── Agent catalog ──────────────────────────────── */
+    /* ─── Agent catalog (static) ─────────────────────── */
     AGENTS: {
-      'manager':    { name:'Manager',    emoji:'🎯', color:'#a78bfa', role:'Оркестратор',   glow:'rgba(167,139,250,.3)' },
-      'researcher': { name:'Researcher', emoji:'🔍', color:'#60a5fa', role:'Исследователь', glow:'rgba(96,165,250,.3)'  },
-      'writer':     { name:'Writer',     emoji:'✍️',  color:'#4ade80', role:'Автор',         glow:'rgba(74,222,128,.3)'  },
-      'coder':      { name:'Coder',      emoji:'💻', color:'#fbbf24', role:'Разработчик',   glow:'rgba(251,191,36,.3)'  },
-      'analyst':    { name:'Analyst',    emoji:'📊', color:'#f87171', role:'Аналитик',      glow:'rgba(248,113,113,.3)' },
-      'ux-auditor': { name:'UX Auditor', emoji:'🎨', color:'#fb923c', role:'UI/UX',         glow:'rgba(251,146,60,.3)'  },
-      'site-coder': { name:'Site Coder', emoji:'🌐', color:'#22d3ee', role:'Frontend',      glow:'rgba(34,211,238,.3)'  },
-      'deployer':   { name:'Deployer',   emoji:'🚀', color:'#86efac', role:'DevOps',        glow:'rgba(134,239,172,.3)' },
+      'manager':    { name:'Manager',    emoji:'🎯', color:'#a78bfa', role:'Оркестратор'   },
+      'researcher': { name:'Researcher', emoji:'🔍', color:'#60a5fa', role:'Исследователь' },
+      'writer':     { name:'Writer',     emoji:'✍️',  color:'#4ade80', role:'Автор'         },
+      'coder':      { name:'Coder',      emoji:'💻', color:'#fbbf24', role:'Разработчик'   },
+      'analyst':    { name:'Analyst',    emoji:'📊', color:'#f87171', role:'Аналитик'      },
+      'ux-auditor': { name:'UX Auditor', emoji:'🎨', color:'#fb923c', role:'UI/UX'         },
+      'site-coder': { name:'Site Coder', emoji:'🌐', color:'#22d3ee', role:'Frontend'      },
+      'deployer':   { name:'Deployer',   emoji:'🚀', color:'#86efac', role:'DevOps'        },
     },
-    STATUS_RU: { idle:'IDLE', thinking:'ДУМАЕТ', working:'АКТИВЕН', done:'ГОТОВО' },
-    VERB:      { thinking:'думает', working:'работает', done:'завершил' },
+    STATUS_RU: { idle:'Свободен', thinking:'Думает', working:'Активен', done:'Готово' },
 
-    /* ─── Computed: kanban columns ───────────────────── */
-    get kanbanCols() {
-      return [
-        { key:'pending', label:'Ожидание', color:'#fbbf24', tasks: this.allTasks.filter(t=>t.status==='pending') },
-        { key:'active',  label:'В работе', color:'#a78bfa', tasks: this.allTasks.filter(t=>t.status==='processing') },
-        { key:'done',    label:'Готово',   color:'#4ade80', tasks: this.allTasks.filter(t=>t.status==='done') },
-      ];
+    /* ─── Computed getters ────────────────────────────── */
+    get filteredMessages() {
+      if (this.activeAgent === null) return this.messages;
+      return this.messages.filter(m => m.role === this.activeAgent || m.role === 'user');
+    },
+    get activeAgentObj() {
+      if (!this.activeAgent) return null;
+      return this.agents.find(a => a.key === this.activeAgent) || null;
     },
 
     /* ─── Init ───────────────────────────────────────── */
@@ -358,30 +376,24 @@ function app() {
 
     /* ─── WebSocket ──────────────────────────────────── */
     connect() {
-      const p = location.protocol === 'https:' ? 'wss' : 'ws';
-      this.ws = new WebSocket(`${p}://${location.host}/ws`);
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      this.ws = new WebSocket(`${proto}://${location.host}/ws`);
       this.ws.onopen  = () => { this.wsLive = true; };
-      this.ws.onclose = () => { this.wsLive = false; setTimeout(() => this.connect(), 3000); };
+      this.ws.onclose = () => {
+        this.wsLive = false;
+        setTimeout(() => this.connect(), 3000);
+      };
       this.ws.onmessage = e => {
         const d = JSON.parse(e.data);
         if (d.type === 'init') {
-          // merge server agents into local
           d.agents.forEach(a => this.applyAgent(a));
-          // load history — all open by default
-          this.messages = d.history.map(m => ({ ...m, open: true }));
+          this.messages = d.history.map(m => ({ ...m }));
           this.$nextTick(() => this.scrollFeed());
           this.loadTasks();
         } else if (d.type === 'agents') {
-          d.agents.forEach(a => {
-            const prev = this.agents.find(x => x.key === a.key);
-            const prevSt = prev?.status || 'idle';
-            this.applyAgent(a);
-            if (a.status && a.status !== prevSt && a.status !== 'idle') {
-              this.pushTick(a.key, a.status, a.task || '');
-            }
-          });
+          d.agents.forEach(a => this.applyAgent(a));
         } else if (d.type === 'chat') {
-          this.messages.push({ ...d.message, open: true });
+          this.messages.push({ ...d.message });
           this.$nextTick(() => this.scrollFeed());
         } else if (d.type === 'tasks_update') {
           this.loadTasks();
@@ -413,47 +425,53 @@ function app() {
     },
 
     fmtDate(iso) {
+      if (!iso) return '';
       const d = new Date(iso);
-      return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'})
-           + ' ' + d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+      return d.toLocaleDateString('ru-RU', { day:'numeric', month:'short' })
+           + ' ' + d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
     },
 
-    /* ─── Ticker ─────────────────────────────────────── */
-    pushTick(key, status, task) {
-      const d = this.AGENTS[key];
-      if (!d || status === 'idle') return;
-      this.tickerEvents.push({
-        emoji: d.emoji, name: d.name, color: d.color,
-        verb: this.VERB[status] || status, task,
-      });
-      if (this.tickerEvents.length > 20) this.tickerEvents.shift();
+    /* ─── Sidebar helpers ────────────────────────────── */
+    lastMsgPreview(key) {
+      const pool = key === null
+        ? this.messages
+        : this.messages.filter(m => m.role === key);
+      if (!pool.length) return '';
+      const last = pool[pool.length - 1];
+      return (last.content || '').replace(/[#*`\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 42) + (last.content.length > 42 ? '…' : '');
+    },
+    lastMsgTime(key) {
+      const pool = key === null
+        ? this.messages
+        : this.messages.filter(m => m.role === key);
+      return pool.length ? pool[pool.length - 1].time || '' : '';
     },
 
-    /* ─── Feed helpers ───────────────────────────────── */
-    isPlan(content) {
-      return /^\*\*Plan:\*\*|^Plan:/i.test((content||'').trim());
-    },
-    stripPlan(content) {
-      return (content||'').replace(/^\*\*Plan:\*\*\s*/,'').replace(/^Plan:\s*/i,'');
-    },
-
-    /* ─── Markdown ───────────────────────────────────── */
+    /* ─── Markdown renderer ──────────────────────────── */
     renderMd(raw) {
       if (!raw) return '';
       const cb = [];
-      let t = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_,c) => { cb.push(c.trim()); return `\x00${cb.length-1}\x00`; });
-      t = t.replace(/`([^`]+)`/g, (_,c) => `<code>${this.esc(c)}</code>`);
-      t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');
-      t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
-      t = t.replace(/^---+$/gm,'<hr>');
-      t = t.replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
-      t = t.replace(/^>\s+(.+)$/gm,'<blockquote>$1</blockquote>');
+      let t = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, c) => {
+        cb.push(c.trim()); return `\x00${cb.length - 1}\x00`;
+      });
+      t = t.replace(/`([^`]+)`/g, (_, c) => `<code>${this.esc(c)}</code>`);
+      t = t.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+           .replace(/^## (.+)$/gm,  '<h2>$1</h2>')
+           .replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+      t = t.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+           .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+           .replace(/\*(.+?)\*/g, '<em>$1</em>');
+      t = t.replace(/^---+$/gm, '<hr>');
+      t = t.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>')
+           .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+      t = t.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
       t = t.split(/\n{2,}/).map(c => {
-        c = c.trim(); if (!c) return '';
+        c = c.trim();
+        if (!c) return '';
         if (/^<(h[1-3]|ul|ol|hr|blockquote|pre)/.test(c)) return c;
-        return `<p>${c.replace(/\n/g,'<br>')}</p>`;
+        return `<p>${c.replace(/\n/g, '<br>')}</p>`;
       }).join('');
-      t = t.replace(/\x00(\d+)\x00/g, (_,i) => `<pre><code>${this.esc(cb[+i])}</code></pre>`);
+      t = t.replace(/\x00(\d+)\x00/g, (_, i) => `<pre><code>${this.esc(cb[+i])}</code></pre>`);
       return t;
     },
     esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
@@ -466,7 +484,14 @@ function app() {
       this.inputText = '';
       this.$nextTick(() => {
         const ta = this.$refs.ta;
-        if (ta) { ta.style.height = 'auto'; }
+        if (ta) ta.style.height = 'auto';
+      });
+    },
+
+    focusInput() {
+      this.$nextTick(() => {
+        const ta = this.$refs.ta;
+        if (ta) ta.focus();
       });
     },
 
@@ -474,7 +499,7 @@ function app() {
       const ta = this.$refs.ta;
       if (!ta) return;
       ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 90) + 'px';
+      ta.style.height = Math.min(ta.scrollHeight, 100) + 'px';
     },
 
     /* ─── Voice ──────────────────────────────────────── */
@@ -502,14 +527,15 @@ function app() {
     toggleMic() {
       if (!this._rec) return;
       if (this._recRunning) { this._rec.stop(); this._recRunning = false; }
-      else { try { this._rec.start(); this._recRunning = true; } catch(e){} }
+      else { try { this._rec.start(); this._recRunning = true; } catch(e) {} }
     },
 
     /* ─── Clock ──────────────────────────────────────── */
     startClock() {
       const tick = () => {
         const n = new Date();
-        this.clock = [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+        this.clock = [n.getHours(), n.getMinutes(), n.getSeconds()]
+          .map(v => String(v).padStart(2, '0')).join(':');
         setTimeout(tick, 1000);
       };
       tick();

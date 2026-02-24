@@ -18,6 +18,9 @@ AGENT_DEFS = {
     "writer":     {"id": 2, "name": "Writer",     "role": "Content Writer", "emoji": "✍️", "color": "#4ade80"},
     "coder":      {"id": 3, "name": "Coder",      "role": "Code Engineer",  "emoji": "💻", "color": "#facc15"},
     "analyst":    {"id": 4, "name": "Analyst",    "role": "Data Analyst",   "emoji": "📊", "color": "#fb7185"},
+    "ux-auditor": {"id": 5, "name": "UX Auditor", "role": "Design Analyst", "emoji": "🎨", "color": "#f97316"},
+    "site-coder": {"id": 6, "name": "Site Coder", "role": "Frontend Dev",   "emoji": "🌐", "color": "#22d3ee"},
+    "deployer":   {"id": 7, "name": "Deployer",   "role": "Git Publisher",  "emoji": "🚀", "color": "#a3e635"},
 }
 
 

@@ -356,6 +356,9 @@ textarea#ti::placeholder { color: var(--t3); }
     <div class="sl">Команда</div>
     <div id="workersGrid"></div>
 
+    <div class="sl">Сайт</div>
+    <div id="siteAgentsGrid"></div>
+
   </aside>
 
   <!-- MAIN PANEL -->
@@ -411,17 +414,26 @@ const WORKERS = [
   { key:'coder',      name:'Coder',      emoji:'💻', color:'#facc15', bg:'rgba(250,204,21,.12)',  role:'Code Engineer'  },
   { key:'analyst',    name:'Analyst',    emoji:'📊', color:'#fb7185', bg:'rgba(251,113,133,.12)', role:'Data Analyst'   },
 ];
+const SITE_WORKERS = [
+  { key:'ux-auditor', name:'UX Auditor', emoji:'🎨', color:'#f97316', bg:'rgba(249,115,22,.12)',  role:'Design Analyst' },
+  { key:'site-coder', name:'Site Coder', emoji:'🌐', color:'#22d3ee', bg:'rgba(34,211,238,.12)',  role:'Frontend Dev'   },
+  { key:'deployer',   name:'Deployer',   emoji:'🚀', color:'#a3e635', bg:'rgba(163,230,53,.12)',  role:'Git Publisher'  },
+];
 const META = {
   manager:    {emoji:'🎯',color:'#a78bfa',name:'Manager'},
   researcher: {emoji:'🔍',color:'#38bdf8',name:'Researcher'},
   writer:     {emoji:'✍️', color:'#4ade80',name:'Writer'},
   coder:      {emoji:'💻',color:'#facc15',name:'Coder'},
   analyst:    {emoji:'📊',color:'#fb7185',name:'Analyst'},
+  'ux-auditor':{emoji:'🎨',color:'#f97316',name:'UX Auditor'},
+  'site-coder':{emoji:'🌐',color:'#22d3ee',name:'Site Coder'},
+  deployer:   {emoji:'🚀',color:'#a3e635',name:'Deployer'},
 };
 const BL = {idle:'IDLE',thinking:'ДУМАЕТ',working:'АКТИВЕН',done:'ГОТОВО'};
 
 /* Build worker rows */
-document.getElementById('workersGrid').innerHTML = WORKERS.map(w => `
+function buildWorkerRow(w) {
+  return `
   <div class="ag-row idle" id="card-${w.key}">
     <div class="av28" style="background:${w.bg}">${w.emoji}</div>
     <div class="ag-info">
@@ -432,8 +444,10 @@ document.getElementById('workersGrid').innerHTML = WORKERS.map(w => `
       <div class="ag-role">${w.role}</div>
       <div class="ag-task" id="task-${w.key}">Свободен</div>
     </div>
-  </div>
-`).join('');
+  </div>`;
+}
+document.getElementById('workersGrid').innerHTML = WORKERS.map(buildWorkerRow).join('');
+document.getElementById('siteAgentsGrid').innerHTML = SITE_WORKERS.map(buildWorkerRow).join('');
 
 function updateCard(a) {
   const isM   = a.key === 'manager';

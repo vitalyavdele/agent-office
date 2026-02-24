@@ -1,0 +1,206 @@
+{
+  "name": "Agent Office — Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manager",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "manager-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/n8n/callback",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "agent",    "value": "manager" },
+            { "name": "status",   "value": "thinking" },
+            { "name": "task",     "value": "Анализирую задачу…" },
+            { "name": "progress", "value": 20 }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n2",
+      "name": "Notify Thinking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-opus-4-6",
+        "messages": {
+          "messageValues": [
+            {
+              "content": "={{ $json.body.task }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "Ты — Manager Agent, главный оркестратор команды ИИ-агентов.\n\nТвоя команда:\n- researcher: ищет информацию в интернете, собирает актуальные данные\n- writer: создаёт тексты, статьи, письма, контент любого рода\n- coder: пишет, анализирует и объясняет код на любых языках\n- analyst: анализирует данные, документы, делает выводы и рекомендации\n\nПолучив задачу, ответь ТОЛЬКО валидным JSON (без markdown-обёртки, без пояснений вне JSON):\n{\n  \"summary\": \"Краткое описание плана (1-2 предложения)\",\n  \"subtasks\": [\n    {\n      \"agent\": \"researcher|writer|coder|analyst\",\n      \"task\": \"Конкретная задача для этого агента\",\n      \"context\": \"Дополнительный контекст (пустая строка если не нужен)\"\n    }\n  ]\n}\n\nПравила:\n- Используй минимум агентов необходимых для задачи\n- Если задача простая — один subtask\n- Порядок subtasks важен: результаты предыдущих передаются следующим\n- Выбирай агента строго по специализации",
+          "maxTokens": 1024
+        }
+      },
+      "id": "n3",
+      "name": "Decompose Task (LLM)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse LLM response, strip markdown fences if present\nlet text = $input.item.json.text || $input.item.json.content || '';\nif (text.includes('```')) {\n  const parts = text.split('```');\n  for (let p of parts) {\n    p = p.trim();\n    const cleaned = p.startsWith('json') ? p.slice(4).trim() : p;\n    if (cleaned.startsWith('{')) { text = cleaned; break; }\n  }\n}\nlet plan;\ntry {\n  plan = JSON.parse(text);\n} catch(e) {\n  // Fallback: treat as writer task\n  plan = {\n    summary: 'Выполняю задачу напрямую.',\n    subtasks: [{ agent: 'writer', task: $('Webhook').item.json.body.task, context: '' }]\n  };\n}\nreturn [{ json: { plan, originalTask: $('Webhook').item.json.body.task } }];"
+      },
+      "id": "n4",
+      "name": "Parse Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/n8n/callback",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "agent",   "value": "manager" },
+            { "name": "status",  "value": "working" },
+            { "name": "task",    "value": "Делегирую задачи…" },
+            { "name": "progress","value": 60 },
+            { "name": "message", "value": "=**Мой план:** {{ $json.plan.summary }}\n\nДелегирую {{ $json.plan.subtasks.length }} задач(и)." }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n5",
+      "name": "Notify Plan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dispatch subtasks to worker webhooks sequentially\n// Each worker webhook URL is: $env.N8N_WORKER_WEBHOOK_BASE/<agent>\nconst subtasks = $input.item.json.plan.subtasks;\nconst originalTask = $input.item.json.originalTask;\nconst dashboardUrl = $env.DASHBOARD_URL;\nconst workerBase = $env.N8N_WORKER_WEBHOOK_BASE;\n\nlet prevResults = [];\nfor (let i = 0; i < subtasks.length; i++) {\n  const s = subtasks[i];\n  const agent = ['researcher','writer','coder','analyst'].includes(s.agent) ? s.agent : 'writer';\n  const body = {\n    agent,\n    task: s.task,\n    context: s.context || '',\n    prev_results: prevResults,\n    callback_url: dashboardUrl + '/api/n8n/callback',\n  };\n  const resp = await $http.request({\n    method: 'POST',\n    url: workerBase + '/' + agent,\n    body,\n    json: true,\n  });\n  const result = resp.result || resp.output || JSON.stringify(resp);\n  prevResults.push({ agent, result });\n}\nreturn [{ json: { results: prevResults, originalTask } }];"
+      },
+      "id": "n6",
+      "name": "Dispatch Workers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Synthesize if more than 1 result — POST to Anthropic directly\nconst results = $input.item.json.results;\nconst originalTask = $input.item.json.originalTask;\nconst dashboardUrl = $env.DASHBOARD_URL;\n\nif (results.length <= 1) {\n  return [{ json: { skip: true } }];\n}\n\nconst resultsText = results.map(r => `**${r.agent}:**\\n${r.result}`).join('\\n\\n');\nconst prompt = `Задача пользователя: ${originalTask}\\n\\nЧто сделала команда:\\n${resultsText}\\n\\nПодведи итог.`;\n\nreturn [{ json: { prompt, skip: false } }];"
+      },
+      "id": "n7",
+      "name": "Prepare Synthesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 0]
+    },
+    {
+      "parameters": {
+        "model": "claude-opus-4-6",
+        "messages": {
+          "messageValues": [
+            { "content": "={{ $json.prompt }}" }
+          ]
+        },
+        "options": {
+          "systemMessage": "Ты — Manager Agent. Твоя команда выполнила задачу пользователя.\nПодведи краткое итоговое заключение (3-6 предложений):\n- Что было сделано\n- Ключевые результаты\n- Следующие шаги если нужны\nОтвечай по-русски.",
+          "maxTokens": 512
+        }
+      },
+      "id": "n8",
+      "name": "Synthesize (LLM)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1680, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/n8n/callback",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "agent",   "value": "manager" },
+            { "name": "status",  "value": "done" },
+            { "name": "task",    "value": "Готово" },
+            { "name": "progress","value": 100 },
+            { "name": "message", "value": "={{ $json.text || $json.content || 'Команда завершила работу.' }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n9",
+      "name": "Notify Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/n8n/callback",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "agent",   "value": "manager" },
+            { "name": "status",  "value": "idle" },
+            { "name": "task",    "value": "Ожидает задачу" },
+            { "name": "progress","value": 0 }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n10",
+      "name": "Notify Idle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }"
+      },
+      "id": "n11",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2400, 0]
+    }
+  ],
+  "connections": {
+    "Webhook":          { "main": [[{ "node": "Notify Thinking", "type": "main", "index": 0 }]] },
+    "Notify Thinking":  { "main": [[{ "node": "Decompose Task (LLM)", "type": "main", "index": 0 }]] },
+    "Decompose Task (LLM)": { "main": [[{ "node": "Parse Plan", "type": "main", "index": 0 }]] },
+    "Parse Plan":       { "main": [[{ "node": "Notify Plan", "type": "main", "index": 0 }]] },
+    "Notify Plan":      { "main": [[{ "node": "Dispatch Workers", "type": "main", "index": 0 }]] },
+    "Dispatch Workers": { "main": [[{ "node": "Prepare Synthesis", "type": "main", "index": 0 }]] },
+    "Prepare Synthesis":{ "main": [
+      [{ "node": "Synthesize (LLM)", "type": "main", "index": 0 }],
+      [{ "node": "Notify Idle", "type": "main", "index": 0 }]
+    ]},
+    "Synthesize (LLM)": { "main": [[{ "node": "Notify Synthesis", "type": "main", "index": 0 }]] },
+    "Notify Synthesis": { "main": [[{ "node": "Notify Idle", "type": "main", "index": 0 }]] },
+    "Notify Idle":      { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["agent-office"]
+}

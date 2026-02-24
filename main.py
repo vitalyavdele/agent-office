@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import httpx
@@ -114,20 +115,19 @@ async def _forward_to_n8n(task: str):
             "type": "chat",
             "message": {
                 "role": "manager", "name": "Manager", "emoji": "🎯", "color": "#a78bfa",
-                "content": "⚠️ N8N_MANAGER_WEBHOOK не настроен. Задача не отправлена.",
+                "content": "⚠️ N8N_MANAGER_WEBHOOK не настроен.",
                 "time": "00:00",
             },
         })
         return
+    # Fire-and-forget: don't block on n8n response.
+    # Results come back asynchronously via /api/n8n/callback.
+    asyncio.create_task(_call_n8n(task))
+
+
+async def _call_n8n(task: str):
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=300) as client:
             await client.post(N8N_MANAGER_WEBHOOK, json={"task": task})
-    except Exception as e:
-        await broadcast({
-            "type": "chat",
-            "message": {
-                "role": "manager", "name": "Manager", "emoji": "🎯", "color": "#a78bfa",
-                "content": f"⚠️ Не удалось связаться с n8n: {e}",
-                "time": "00:00",
-            },
-        })
+    except Exception:
+        pass  # Agents send results via callback — errors here are non-fatal

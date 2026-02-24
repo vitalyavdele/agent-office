@@ -96,6 +96,8 @@ class StateManager:
             k: AgentState(key=k, **v) for k, v in AGENT_DEFS.items()
         }
         self.history: list[dict] = []
+        self.articles: list[dict] = []
+        self._article_counter: int = 0
         self._current_task_id: Optional[int] = None
 
         self.db: Optional[SupabaseClient] = None
@@ -266,6 +268,26 @@ class StateManager:
                 # Fallback: after server restart _current_task_id is lost —
                 # mark the most recent processing task as done anyway
                 asyncio.create_task(self._finish_latest_processing(summary))
+
+    # ── Articles (RSS for Яндекс Дзен) ───────────────────────────────────────
+
+    def save_article(self, title: str, content: str) -> dict:
+        self._article_counter += 1
+        article = {
+            "id":         self._article_counter,
+            "title":      title,
+            "content":    content,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        self.articles.insert(0, article)
+        if len(self.articles) > 100:
+            self.articles.pop()
+        return article
+
+    def get_articles(self, limit: int = 50) -> list[dict]:
+        return self.articles[:limit]
+
+    # ── Public API ────────────────────────────────────────────────────────────
 
     def add_user_message(self, content: str) -> dict:
         msg = {

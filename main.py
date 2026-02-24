@@ -9,7 +9,7 @@ load_dotenv(Path(__file__).parent / ".env")
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.requests import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from agents import StateManager
@@ -149,6 +149,95 @@ async def n8n_callback(request: Request):
 async def api_tasks():
     tasks = await state.get_tasks(limit=50)
     return JSONResponse({"tasks": tasks})
+
+
+# ── REST: articles + RSS feed for Яндекс Дзен ────────────────────────────────
+
+RAILWAY_URL = "https://web-production-4e42e.up.railway.app"
+
+
+@app.post("/api/articles")
+async def api_articles_post(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    title   = (body.get("title") or "").strip() or "Без названия"
+    content = (body.get("content") or "").strip()
+    if not content:
+        return JSONResponse({"ok": False, "error": "empty content"}, status_code=400)
+
+    article     = state.save_article(title, content)
+    article_url = f"{RAILWAY_URL}/articles/{article['id']}"
+    return JSONResponse({"ok": True, "id": article["id"], "article_url": article_url,
+                         "rss_url": f"{RAILWAY_URL}/rss"})
+
+
+@app.get("/articles/{article_id}")
+async def get_article(article_id: int):
+    for a in state.articles:
+        if a["id"] == article_id:
+            import re
+            def md_to_html(text: str) -> str:
+                text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+                text = re.sub(r'^## (.+)$',  r'<h2>\1</h2>', text, flags=re.MULTILINE)
+                text = re.sub(r'^# (.+)$',   r'<h1>\1</h1>', text, flags=re.MULTILINE)
+                text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+                text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', text)
+                paragraphs = re.split(r'\n\n+', text)
+                return ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
+            title   = a["title"].replace("<", "&lt;")
+            content = md_to_html(a["content"])
+            html = (f'<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">'
+                    f'<title>{title}</title><style>body{{font-family:Georgia,serif;'
+                    f'max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7}}'
+                    f'h1,h2,h3{{font-family:sans-serif}}</style></head>'
+                    f'<body><h1>{title}</h1>{content}</body></html>')
+            return Response(content=html, media_type="text/html; charset=utf-8")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
+
+@app.get("/rss")
+async def rss_feed():
+    import re
+
+    def md_to_html(text: str) -> str:
+        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+        text = re.sub(r'^## (.+)$',  r'<h2>\1</h2>', text, flags=re.MULTILINE)
+        text = re.sub(r'^# (.+)$',   r'<h1>\1</h1>', text, flags=re.MULTILINE)
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', text)
+        paragraphs = re.split(r'\n\n+', text)
+        return ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
+
+    def esc(s: str) -> str:
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    articles = state.get_articles(limit=50)
+    items = ""
+    for a in articles:
+        link = f"{RAILWAY_URL}/articles/{a['id']}"
+        items += f"""
+    <item>
+      <title>{esc(a['title'])}</title>
+      <link>{link}</link>
+      <guid isPermaLink="true">{link}</guid>
+      <pubDate>{a['created_at']}</pubDate>
+      <description><![CDATA[{md_to_html(a['content'])}]]></description>
+    </item>"""
+
+    rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Agent Office — Яндекс Дзен</title>
+    <link>{RAILWAY_URL}</link>
+    <description>Автоматически генерируемые статьи</description>
+    <language>ru</language>
+    <atom:link href="{RAILWAY_URL}/rss" rel="self" type="application/rss+xml"/>{items}
+  </channel>
+</rss>"""
+    return Response(content=rss, media_type="application/rss+xml; charset=utf-8")
 
 
 # ── Helper: forward task to n8n ───────────────────────────────────────────────

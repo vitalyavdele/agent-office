@@ -182,6 +182,20 @@ class StateManager:
         except Exception as e:
             print(f"[Supabase] finish_task error: {e}")
 
+    async def _finish_latest_processing(self, summary: str = "") -> None:
+        """Fallback: mark the most recent 'processing' task done when task_id was lost."""
+        try:
+            rows = await self.db.select("tasks", {
+                "select": "id",
+                "status": "eq.processing",
+                "order": "created_at.desc",
+                "limit": "1",
+            })
+            if rows and isinstance(rows, list) and rows[0].get("id"):
+                await self.finish_task(rows[0]["id"], summary)
+        except Exception as e:
+            print(f"[Supabase] _finish_latest_processing error: {e}")
+
     async def get_tasks(self, limit: int = 50) -> list:
         if not self.db:
             return []
@@ -242,10 +256,16 @@ class StateManager:
             await broadcast({"type": "chat", "message": msg})
 
         # When manager goes idle, mark current task as done
-        if key == "manager" and payload.get("status") == "idle" and self._current_task_id:
+        if key == "manager" and payload.get("status") == "idle":
             task_id = self._current_task_id
             self._current_task_id = None
-            asyncio.create_task(self.finish_task(task_id))
+            summary = payload.get("message", "")
+            if task_id:
+                asyncio.create_task(self.finish_task(task_id, summary))
+            elif self.db:
+                # Fallback: after server restart _current_task_id is lost —
+                # mark the most recent processing task as done anyway
+                asyncio.create_task(self._finish_latest_processing(summary))
 
     def add_user_message(self, content: str) -> dict:
         msg = {

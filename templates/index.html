@@ -9,12 +9,13 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg:   #0f0f17;
-  --bg2:  #13131e;
-  --card: rgba(255,255,255,.04);
-  --bdr:  rgba(255,255,255,.08);
-  --text: #e2e8f0;
-  --dim:  #64748b;
+  --bg:   #0d0d14;
+  --bg2:  #111118;
+  --card: rgba(255,255,255,.03);
+  --bdr:  rgba(255,255,255,.07);
+  --text: #dde3ed;
+  --dim:  #5a6a82;
+  --dim2: #7a8a9e;
 }
 
 html, body { height: 100%; overflow: hidden; }
@@ -24,259 +25,263 @@ body {
   display: flex; flex-direction: column;
 }
 body::before {
-  content: ''; position: fixed; inset: 0;
+  content: ''; position: fixed; inset: 0; pointer-events: none;
   background:
-    radial-gradient(ellipse at 10% 20%, rgba(124,58,237,.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 90% 80%, rgba(56,189,248,.05) 0%, transparent 55%);
-  pointer-events: none;
+    radial-gradient(ellipse 60% 40% at 8% 15%, rgba(124,58,237,.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 92% 85%, rgba(56,189,248,.04) 0%, transparent 70%);
 }
 
 /* ── HEADER ── */
 header {
-  height: 54px; background: rgba(15,15,23,.95);
-  backdrop-filter: blur(12px); border-bottom: 1px solid var(--bdr);
-  display: flex; align-items: center; padding: 0 24px;
-  justify-content: space-between; flex-shrink: 0;
-  position: relative; z-index: 10;
+  height: 52px; flex-shrink: 0;
+  background: rgba(13,13,20,.97);
+  border-bottom: 1px solid var(--bdr);
+  display: flex; align-items: center; padding: 0 20px;
+  justify-content: space-between; position: relative; z-index: 10;
 }
 .logo {
-  font-size: 15px; font-weight: 700;
-  background: linear-gradient(135deg,#a78bfa,#38bdf8);
+  font-size: 14px; font-weight: 700; letter-spacing: -.2px;
+  background: linear-gradient(135deg,#a78bfa 0%,#60a5fa 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.hdr-right { display: flex; align-items: center; gap: 20px; }
+.hdr-right { display: flex; align-items: center; gap: 18px; }
 .live {
-  font-size: 12px; font-weight: 600; color: #4ade80;
-  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 600; color: #4ade80;
+  display: flex; align-items: center; gap: 6px;
 }
 .live::before {
-  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: #4ade80; animation: livepulse 2s infinite;
 }
-.live.off { color: #fb7185; }
-.live.off::before { background: #fb7185; animation: none; }
+.live.off { color: #f87171; }
+.live.off::before { background: #f87171; animation: none; }
 @keyframes livepulse {
-  0%   { box-shadow: 0 0 0 0 rgba(74,222,128,.5); }
-  70%  { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
-  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,.4); }
+  60%     { box-shadow: 0 0 0 7px rgba(74,222,128,0); }
 }
-.clock { font-size: 13px; font-weight: 500; color: var(--dim); font-variant-numeric: tabular-nums; }
+.clock { font-size: 12px; color: var(--dim2); font-variant-numeric: tabular-nums; }
 
 /* ── LAYOUT ── */
 .main { flex: 1; display: flex; overflow: hidden; position: relative; z-index: 1; }
 
 /* ── SIDEBAR ── */
-.workspace {
-  width: 260px; flex-shrink: 0;
+.sidebar {
+  width: 240px; flex-shrink: 0;
   border-right: 1px solid var(--bdr);
-  padding: 16px 12px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 10px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
 }
-.section-label {
+.sec-label {
   font-size: 9px; font-weight: 700; color: var(--dim);
-  text-transform: uppercase; letter-spacing: 1.5px; padding: 0 2px;
+  text-transform: uppercase; letter-spacing: 1.5px; padding: 2px 4px;
+  margin-top: 4px;
 }
-.card-manager {
-  background: var(--card); border: 1px solid rgba(167,139,250,.18);
-  border-radius: 12px; padding: 12px 14px;
-  display: flex; align-items: center; gap: 12px;
+
+/* Agent card — manager */
+.a-manager {
+  background: var(--card); border: 1px solid rgba(167,139,250,.15);
+  border-radius: 10px; padding: 11px 12px;
+  display: flex; align-items: center; gap: 10px;
   transition: border-color .4s, box-shadow .4s;
 }
-.card-manager.working, .card-manager.thinking {
-  border-color: rgba(167,139,250,.4);
-  box-shadow: 0 0 16px rgba(167,139,250,.07);
+.a-manager.working, .a-manager.thinking {
+  border-color: rgba(167,139,250,.35);
+  box-shadow: 0 0 14px rgba(167,139,250,.06);
 }
-.workers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.card-worker {
+.workers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.a-worker {
   background: var(--card); border: 1px solid var(--bdr);
-  border-radius: 12px; padding: 12px;
+  border-radius: 10px; padding: 10px;
   transition: border-color .4s;
 }
-.card-worker.working { border-color: rgba(255,255,255,.15); }
-.card-worker.done    { border-color: rgba(74,222,128,.3); }
+.a-worker.working { border-color: rgba(255,255,255,.13); }
+.a-worker.done    { border-color: rgba(74,222,128,.25); }
 
-.avatar    { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
-.avatar-sm { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.av    { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.av-sm { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+
 .badge {
-  font-size: 9px; font-weight: 700; padding: 2px 7px;
-  border-radius: 99px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+  font-size: 8px; font-weight: 700; padding: 2px 6px;
+  border-radius: 99px; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap;
 }
-.badge.idle     { background: rgba(100,116,139,.15); color: var(--dim); }
-.badge.thinking { background: rgba(167,139,250,.18); color: #a78bfa; animation: blink .8s infinite; }
-.badge.working  { background: rgba(74,222,128,.14);  color: #4ade80; }
-.badge.done     { background: rgba(74,222,128,.2);   color: #4ade80; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
-.card-info { flex: 1; min-width: 0; }
-.card-name { font-size: 13px; font-weight: 600; color: #fff; }
-.card-role { font-size: 10px; color: var(--dim); margin-top: 1px; }
-.card-task {
-  font-size: 11px; color: var(--dim); margin-top: 5px;
+.badge.idle     { background: rgba(90,106,130,.15);  color: var(--dim2); }
+.badge.thinking { background: rgba(167,139,250,.15); color: #a78bfa; animation: blink .9s infinite; }
+.badge.working  { background: rgba(74,222,128,.12);  color: #4ade80; }
+.badge.done     { background: rgba(74,222,128,.18);  color: #4ade80; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.a-info { flex: 1; min-width: 0; }
+.a-name { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+.a-role { font-size: 10px; color: var(--dim); margin-top: 1px; }
+.a-task {
+  font-size: 10px; color: var(--dim); margin-top: 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.card-task.active { color: var(--text); }
-.act-bar { height: 2px; background: rgba(255,255,255,.06); border-radius: 1px; margin-top: 8px; overflow: hidden; }
-.act-fill { height: 100%; border-radius: 1px; transition: width .7s ease, background .4s; }
-.act-fill.idle     { width: 0%; background: transparent; }
-.act-fill.thinking { background: #a78bfa; animation: indeterminate 1.4s infinite; }
+.a-task.on { color: var(--dim2); }
+.act-bar { height: 2px; background: rgba(255,255,255,.05); border-radius: 1px; margin-top: 8px; overflow: hidden; }
+.act-fill { height: 100%; border-radius: 1px; transition: width .6s, background .4s; }
+.act-fill.idle     { width: 0; background: transparent; }
+.act-fill.thinking { background: #a78bfa; animation: slide 1.4s infinite; }
 .act-fill.working  { background: #4ade80; }
 .act-fill.done     { background: #4ade80; width: 100% !important; }
-@keyframes indeterminate {
-  0%   { transform: translateX(-100%); width: 55%; }
-  100% { transform: translateX(220%);  width: 55%; }
+@keyframes slide {
+  0%   { transform: translateX(-100%); width: 50%; }
+  100% { transform: translateX(220%);  width: 50%; }
 }
 
 /* ── RESULTS PANEL ── */
-.chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 .results {
   flex: 1; overflow-y: auto;
-  padding: 16px 20px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px 8px;
+  display: flex; flex-direction: column; gap: 8px;
 }
 
-/* empty */
+/* empty state */
 .empty {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 10px; opacity: .35; pointer-events: none; text-align: center;
+  gap: 8px; opacity: .3; pointer-events: none; text-align: center;
 }
-.empty-icon  { font-size: 44px; }
-.empty-title { font-size: 15px; font-weight: 600; }
+.empty-icon  { font-size: 40px; }
+.empty-title { font-size: 14px; font-weight: 600; }
 .empty-sub   { font-size: 12px; color: var(--dim); }
 
 /* User message */
+.user-wrap  { display: flex; flex-direction: column; align-items: flex-end; }
+.user-meta  { font-size: 10px; color: var(--dim); margin-bottom: 3px; }
 .user-msg {
-  align-self: flex-end;
-  max-width: 72%;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  color: #fff; border-radius: 14px 14px 4px 14px;
-  padding: 10px 14px; font-size: 13px; line-height: 1.6;
-  animation: msgin .2s ease;
+  max-width: 68%;
+  background: linear-gradient(135deg, #3730a3, #5b21b6);
+  color: #e0d9ff; border-radius: 12px 12px 3px 12px;
+  padding: 9px 13px; font-size: 13.5px; line-height: 1.6;
 }
-.user-msg-meta { text-align: right; font-size: 10px; color: rgba(255,255,255,.45); margin-bottom: 4px; }
 
-/* Plan bar (manager status) */
+/* Plan bar */
 .plan-bar {
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(167,139,250,.07); border: 1px solid rgba(167,139,250,.14);
-  border-radius: 8px; padding: 8px 12px;
-  font-size: 11px; color: var(--dim);
-  animation: msgin .2s ease;
+  display: flex; align-items: flex-start; gap: 8px;
+  background: rgba(167,139,250,.05); border: 1px solid rgba(167,139,250,.12);
+  border-radius: 8px; padding: 8px 12px; font-size: 12px;
 }
-.plan-bar .plan-agent { color: #a78bfa; font-weight: 600; flex-shrink: 0; }
-.plan-bar .plan-text  { flex: 1; }
-.plan-bar .plan-time  { flex-shrink: 0; color: var(--dim); font-variant-numeric: tabular-nums; }
+.plan-badge { color: #a78bfa; font-weight: 600; flex-shrink: 0; font-size: 11px; }
+.plan-text  { flex: 1; color: var(--dim2); line-height: 1.5; }
+.plan-time  { flex-shrink: 0; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
 
 /* Result card */
 .result-card {
-  border-radius: 14px; border: 1px solid var(--bdr);
-  overflow: hidden; background: rgba(255,255,255,.02);
-  animation: msgin .25s ease;
-  transition: border-color .3s;
+  border-radius: 12px; border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.02); overflow: hidden;
+  animation: fadein .25s ease;
 }
-.result-card:hover { border-color: rgba(255,255,255,.14); }
+.result-card:hover { border-color: rgba(255,255,255,.11); }
 
 .rc-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 14px; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 13px; cursor: pointer; user-select: none;
+  transition: background .15s;
 }
-.rc-header:hover { background: rgba(255,255,255,.03); }
+.rc-header:hover { background: rgba(255,255,255,.025); }
 
 .rc-av {
-  width: 28px; height: 28px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; flex-shrink: 0;
+  font-size: 12px; flex-shrink: 0;
 }
-.rc-name  { font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.rc-name    { font-size: 12px; font-weight: 700; flex-shrink: 0; }
 .rc-preview {
-  flex: 1; font-size: 12px; color: var(--dim);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  min-width: 0;
+  flex: 1; font-size: 12px; color: var(--dim2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-.rc-time   { font-size: 10px; color: var(--dim); flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.rc-toggle {
-  font-size: 11px; color: var(--dim); flex-shrink: 0;
-  transition: transform .25s; margin-left: 4px;
-}
-.result-card.open .rc-toggle { transform: rotate(180deg); }
+.rc-time    { font-size: 10px; color: var(--dim); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rc-arrow   { font-size: 10px; color: var(--dim); flex-shrink: 0; margin-left: 2px; transition: transform .2s; }
+.result-card.open .rc-arrow { transform: rotate(180deg); }
 
 .rc-body {
-  max-height: 0; overflow: hidden;
-  transition: max-height .35s ease, padding .25s;
-  padding: 0 14px;
+  display: none;
+  padding: 0 14px 14px;
 }
-.result-card.open .rc-body {
-  max-height: 4000px;
-  padding: 0 14px 16px;
-}
+.result-card.open .rc-body { display: block; }
 
-/* Markdown inside cards */
-.rc-content {
-  font-size: 13px; line-height: 1.7; color: var(--text);
-  border-top: 1px solid var(--bdr); padding-top: 12px;
+/* Scrollable content inside card */
+.rc-scroll {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 6px;
+  border-top: 1px solid var(--bdr);
+  padding-top: 12px;
 }
-.rc-content strong { font-weight: 700; color: #fff; }
-.rc-content em     { color: #94a3b8; }
-.rc-content h1,.rc-content h2,.rc-content h3 {
-  color: #fff; margin: 12px 0 6px; font-weight: 600;
-}
-.rc-content h1 { font-size: 16px; }
-.rc-content h2 { font-size: 14px; }
-.rc-content h3 { font-size: 13px; }
-.rc-content p  { margin-bottom: 8px; }
-.rc-content ul,.rc-content ol { padding-left: 18px; margin-bottom: 8px; }
-.rc-content li { margin-bottom: 4px; }
-.rc-content code {
-  background: rgba(255,255,255,.1); padding: 1px 5px;
-  border-radius: 3px; font-family: 'Fira Code','Courier New',monospace; font-size: 12px;
-}
-.rc-content pre {
-  background: rgba(0,0,0,.5); border: 1px solid var(--bdr);
-  border-radius: 8px; padding: 12px; margin: 8px 0; overflow-x: auto;
-}
-.rc-content pre code { background: none; padding: 0; font-size: 12px; }
-.rc-content blockquote {
-  border-left: 3px solid rgba(167,139,250,.4); padding-left: 12px;
-  color: var(--dim); margin: 8px 0;
-}
-.rc-content hr { border: none; border-top: 1px solid var(--bdr); margin: 10px 0; }
-.rc-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
-.rc-content th,.rc-content td { padding: 6px 10px; border: 1px solid var(--bdr); text-align: left; }
-.rc-content th { background: rgba(255,255,255,.05); font-weight: 600; color: #fff; }
+.rc-scroll::-webkit-scrollbar { width: 3px; }
+.rc-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
 
-@keyframes msgin {
-  from { opacity: 0; transform: translateY(6px); }
+/* Markdown */
+.md { font-size: 13.5px; line-height: 1.75; color: var(--text); }
+.md strong { font-weight: 600; color: #f1f5f9; }
+.md em     { color: #94a3b8; font-style: italic; }
+.md h1 { font-size: 17px; font-weight: 700; color: #f8fafc; margin: 14px 0 7px; }
+.md h2 { font-size: 15px; font-weight: 600; color: #f1f5f9; margin: 12px 0 6px; }
+.md h3 { font-size: 13.5px; font-weight: 600; color: #e2e8f0; margin: 10px 0 5px; }
+.md p  { margin-bottom: 9px; }
+.md ul,.md ol { padding-left: 20px; margin-bottom: 9px; }
+.md li { margin-bottom: 4px; }
+.md code {
+  background: rgba(255,255,255,.09); padding: 2px 6px;
+  border-radius: 4px; font-family: 'Fira Code','Courier New',monospace; font-size: 12px;
+  color: #c4b5fd;
+}
+.md pre {
+  background: rgba(0,0,0,.45); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 12px 14px; margin: 8px 0; overflow-x: auto;
+}
+.md pre code { background: none; padding: 0; font-size: 12px; color: #e2e8f0; }
+.md blockquote {
+  border-left: 3px solid rgba(167,139,250,.35); padding-left: 12px;
+  color: var(--dim2); margin: 8px 0; font-style: italic;
+}
+.md hr { border: none; border-top: 1px solid var(--bdr); margin: 12px 0; }
+
+/* Tables */
+.md .tbl-wrap { overflow-x: auto; margin: 10px 0; border-radius: 8px; border: 1px solid var(--bdr); }
+.md table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.md th,.md td { padding: 7px 12px; border-bottom: 1px solid var(--bdr); text-align: left; }
+.md th { background: rgba(255,255,255,.04); font-weight: 600; color: #f1f5f9; border-bottom-color: rgba(255,255,255,.1); }
+.md tr:last-child td { border-bottom: none; }
+.md tr:hover td { background: rgba(255,255,255,.02); }
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── INPUT ── */
 .input-area {
-  border-top: 1px solid var(--bdr); padding: 12px 20px 14px;
-  background: rgba(15,15,23,.7); backdrop-filter: blur(8px);
+  border-top: 1px solid var(--bdr);
+  padding: 10px 16px 13px;
+  background: rgba(13,13,20,.8);
 }
-.input-row { display: flex; gap: 10px; align-items: flex-end; }
+.input-row { display: flex; gap: 9px; align-items: flex-end; }
 .input-box {
-  flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--bdr);
-  border-radius: 12px; padding: 10px 14px; color: var(--text);
+  flex: 1; background: rgba(255,255,255,.04); border: 1px solid var(--bdr);
+  border-radius: 10px; padding: 10px 13px; color: var(--text);
   font-family: inherit; font-size: 14px; resize: none;
-  min-height: 44px; max-height: 120px; line-height: 1.5;
+  min-height: 42px; max-height: 120px; line-height: 1.5;
   transition: border-color .2s; outline: none;
 }
-.input-box:focus { border-color: rgba(167,139,250,.4); }
+.input-box:focus { border-color: rgba(167,139,250,.35); }
 .input-box::placeholder { color: var(--dim); }
 .send-btn {
-  width: 44px; height: 44px; border-radius: 12px;
+  width: 42px; height: 42px; border-radius: 10px;
   background: #4f46e5; border: none; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 17px; color: #fff; transition: background .2s, transform .1s;
+  font-size: 16px; color: #fff; transition: background .2s, transform .1s;
 }
 .send-btn:hover  { background: #4338ca; }
-.send-btn:active { transform: scale(.93); }
-.input-hint { font-size: 10px; color: var(--dim); margin-top: 6px; }
+.send-btn:active { transform: scale(.92); }
+.input-hint { font-size: 10px; color: var(--dim); margin-top: 5px; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.07); border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -292,32 +297,32 @@ header {
 <div class="main">
 
   <!-- SIDEBAR -->
-  <aside class="workspace">
-    <div class="section-label">Менеджер</div>
-    <div class="card-manager idle" id="card-manager">
-      <div class="avatar" style="background:rgba(167,139,250,.15)">🎯</div>
-      <div class="card-info">
-        <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;">
-          <span class="card-name">Manager</span>
+  <aside class="sidebar">
+    <div class="sec-label">Менеджер</div>
+    <div class="a-manager idle" id="card-manager">
+      <div class="av" style="background:rgba(167,139,250,.12)">🎯</div>
+      <div class="a-info">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span class="a-name">Manager</span>
           <span class="badge idle" id="badge-manager">IDLE</span>
         </div>
-        <div class="card-role">Orchestrator</div>
-        <div class="card-task" id="task-manager">Waiting for task</div>
+        <div class="a-role">Orchestrator</div>
+        <div class="a-task" id="task-manager">Ожидает задачу</div>
         <div class="act-bar"><div class="act-fill idle" id="fill-manager" style="width:0%"></div></div>
       </div>
     </div>
 
-    <div class="section-label" style="margin-top:4px">Команда</div>
+    <div class="sec-label" style="margin-top:6px">Команда</div>
     <div class="workers-grid" id="workersGrid"></div>
   </aside>
 
   <!-- RESULTS -->
-  <section class="chat-panel">
+  <section class="panel">
     <div class="results" id="results">
       <div class="empty" id="emptyState">
         <div class="empty-icon">🏢</div>
         <div class="empty-title">Команда готова к работе</div>
-        <div class="empty-sub">Напишите задачу — менеджер распределит её между агентами</div>
+        <div class="empty-sub">Напишите задачу — менеджер распределит её по команде</div>
       </div>
     </div>
 
@@ -335,12 +340,12 @@ header {
 </div>
 
 <script>
-/* ── WORKERS ── */
+/* ── META ── */
 const WORKERS = [
-  { key:'researcher', name:'Researcher', emoji:'🔍', color:'#38bdf8', bg:'rgba(56,189,248,.12)',  role:'Web Researcher' },
-  { key:'writer',     name:'Writer',     emoji:'✍️', color:'#4ade80', bg:'rgba(74,222,128,.12)',  role:'Content Writer' },
-  { key:'coder',      name:'Coder',      emoji:'💻', color:'#facc15', bg:'rgba(250,204,21,.12)',  role:'Code Engineer'  },
-  { key:'analyst',    name:'Analyst',    emoji:'📊', color:'#fb7185', bg:'rgba(251,113,133,.12)', role:'Data Analyst'   },
+  { key:'researcher', name:'Researcher', emoji:'🔍', color:'#38bdf8', bg:'rgba(56,189,248,.1)',  role:'Web Researcher' },
+  { key:'writer',     name:'Writer',     emoji:'✍️', color:'#4ade80', bg:'rgba(74,222,128,.1)',  role:'Content Writer' },
+  { key:'coder',      name:'Coder',      emoji:'💻', color:'#facc15', bg:'rgba(250,204,21,.1)',  role:'Code Engineer'  },
+  { key:'analyst',    name:'Analyst',    emoji:'📊', color:'#fb7185', bg:'rgba(251,113,133,.1)', role:'Data Analyst'   },
 ];
 const AGENT_META = {
   manager:    { emoji:'🎯', color:'#a78bfa', name:'Manager'    },
@@ -349,161 +354,214 @@ const AGENT_META = {
   coder:      { emoji:'💻', color:'#facc15', name:'Coder'      },
   analyst:    { emoji:'📊', color:'#fb7185', name:'Analyst'    },
 };
+const BADGE_LABELS = { idle:'IDLE', thinking:'ДУМАЕТ', working:'АКТИВЕН', done:'ГОТОВО' };
 
+/* Build worker cards */
 document.getElementById('workersGrid').innerHTML = WORKERS.map(w => `
-  <div class="card-worker idle" id="card-${w.key}">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
-      <div class="avatar-sm" style="background:${w.bg}">${w.emoji}</div>
-      <div style="flex:1;min-width:0;">
-        <div class="card-name" style="font-size:12px">${w.name}</div>
-        <div class="card-role">${w.role}</div>
+  <div class="a-worker idle" id="card-${w.key}">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+      <div class="av-sm" style="background:${w.bg}">${w.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div class="a-name" style="font-size:11px">${w.name}</div>
+        <div class="a-role" style="font-size:9px">${w.role}</div>
       </div>
       <span class="badge idle" id="badge-${w.key}">IDLE</span>
     </div>
-    <div class="card-task" id="task-${w.key}">Свободен</div>
+    <div class="a-task" id="task-${w.key}">Свободен</div>
     <div class="act-bar"><div class="act-fill idle" id="fill-${w.key}" style="width:0%"></div></div>
   </div>
 `).join('');
 
 /* ── UPDATE CARD ── */
-const BADGE_LABELS = { idle:'IDLE', thinking:'ДУМАЕТ', working:'АКТИВЕН', done:'ГОТОВО' };
-
 function updateCard(a) {
-  const isManager = a.key === 'manager';
+  const isM  = a.key === 'manager';
   const card  = document.getElementById(`card-${a.key}`);
   const badge = document.getElementById(`badge-${a.key}`);
   const task  = document.getElementById(`task-${a.key}`);
   const fill  = document.getElementById(`fill-${a.key}`);
   if (!card) return;
-  card.className  = `card-${isManager ? 'manager' : 'worker'} ${a.status}`;
+  card.className  = `${isM ? 'a-manager' : 'a-worker'} ${a.status}`;
   badge.className = `badge ${a.status}`;
   badge.textContent = BADGE_LABELS[a.status] || a.status.toUpperCase();
-  task.textContent  = a.task;
-  task.className    = `card-task${a.status !== 'idle' ? ' active' : ''}`;
+  task.textContent  = a.task || (a.status === 'idle' ? 'Свободен' : '');
+  task.className    = `a-task${a.status !== 'idle' ? ' on' : ''}`;
   fill.className    = `act-fill ${a.status}`;
-  if (a.status === 'working' || a.status === 'done') fill.style.width = a.progress + '%';
-  else if (a.status === 'idle') fill.style.width = '0%';
+  if (a.status === 'working' || a.status === 'done') fill.style.width = (a.progress || 50) + '%';
+  else fill.style.width = '0';
 }
 
 /* ── MARKDOWN ── */
-function escHtml(s) {
+function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-function md(text) {
-  return text
-    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code) =>
-      `<pre><code>${escHtml(code.trim())}</code></pre>`)
-    .replace(/`([^`]+)`/g, (_,c) => `<code>${escHtml(c)}</code>`)
-    .replace(/^#{3}\s+(.+)$/gm, '<h3>$1</h3>')
-    .replace(/^#{2}\s+(.+)$/gm, '<h2>$1</h2>')
-    .replace(/^#{1}\s+(.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^---+$/gm, '<hr>')
-    .replace(/^\|\s*(.+?)\s*\|/gm, m => m) // keep tables as-is (simple)
-    .replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
-    .replace(/\n\n+/g, '</p><p>')
-    .replace(/\n/g, '<br>');
+
+function renderTable(block) {
+  const rows = block.trim().split('\n').filter(r => r.trim());
+  if (rows.length < 2) return esc(block);
+  const isSep = r => /^[\|\s\-:]+$/.test(r);
+  const parseRow = r => r.replace(/^\||\|$/g,'').split('|').map(c => c.trim());
+  const headers  = parseRow(rows[0]);
+  const dataRows = rows.slice(2).filter(r => !isSep(r));
+  let h = '<div class="tbl-wrap"><table><thead><tr>';
+  headers.forEach(c => h += `<th>${c}</th>`);
+  h += '</tr></thead><tbody>';
+  dataRows.forEach(row => {
+    const cells = parseRow(row);
+    h += '<tr>';
+    cells.forEach(c => h += `<td>${c}</td>`);
+    h += '</tr>';
+  });
+  return h + '</tbody></table></div>';
+}
+
+function md(raw) {
+  // Code blocks (protect first)
+  const codeBlocks = [];
+  let text = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(code.trim());
+    return `\x00CODE${codeBlocks.length - 1}\x00`;
+  });
+
+  // Tables: detect blocks of lines starting with |
+  text = text.replace(/((?:\|.+\n?)+)/g, block => renderTable(block));
+
+  // Inline code
+  text = text.replace(/`([^`]+)`/g, (_, c) => `<code>${esc(c)}</code>`);
+
+  // Headings
+  text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  text = text.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  text = text.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+
+  // Bold / italic
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>');
+  text = text.replace(/\*(.+?)\*/g,         '<em>$1</em>');
+
+  // HR
+  text = text.replace(/^---+$/gm, '<hr>');
+
+  // Lists
+  text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+  text = text.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, m => `<ul>${m}</ul>`);
+
+  // Blockquote
+  text = text.replace(/^>\s+(.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // Paragraphs
+  text = text.split(/\n{2,}/).map(chunk => {
+    chunk = chunk.trim();
+    if (!chunk) return '';
+    if (/^<(h[1-3]|ul|ol|li|hr|blockquote|pre|div|table)/.test(chunk)) return chunk;
+    return `<p>${chunk.replace(/\n/g,'<br>')}</p>`;
+  }).join('\n');
+
+  // Restore code blocks
+  text = text.replace(/\x00CODE(\d+)\x00/g, (_, i) =>
+    `<pre><code>${esc(codeBlocks[parseInt(i)])}</code></pre>`);
+
+  return text;
+}
+
+/* ── MESSAGE DEDUPLICATION ── */
+const seenKeys = new Set();
+function msgKey(msg) {
+  return `${msg.role}|${(msg.content || '').slice(0, 80)}`;
 }
 
 /* ── ADD MESSAGE ── */
-let cardCounter = 0;
+let cardCount = 0;
 
-function addMessage(msg) {
+function addMessage(msg, fromHistory) {
+  const key = msgKey(msg);
+  if (seenKeys.has(key)) return;
+  seenKeys.add(key);
+
   const empty = document.getElementById('emptyState');
   if (empty) empty.remove();
 
-  const wrap = document.getElementById('results');
-  const role  = msg.role;
-  const meta  = AGENT_META[role] || { emoji:'🤖', color:'#888', name: msg.name || role };
-  const color = msg.color || meta.color;
-  const emoji = msg.emoji || meta.emoji;
+  const wrap   = document.getElementById('results');
+  const role   = msg.role;
+  const meta   = AGENT_META[role] || { emoji:'🤖', color:'#888', name: msg.name || role };
+  const color  = msg.color || meta.color;
+  const emoji  = msg.emoji || meta.emoji;
 
-  /* ── User message ── */
+  /* User bubble */
   if (role === 'user') {
     const el = document.createElement('div');
-    el.innerHTML = `
-      <div class="user-msg-meta">${msg.time}</div>
-      <div class="user-msg">${escHtml(msg.content)}</div>`;
-    el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;animation:msgin .2s ease';
+    el.className = 'user-wrap';
+    el.innerHTML = `<div class="user-meta">${msg.time}</div>
+      <div class="user-msg">${esc(msg.content)}</div>`;
     wrap.appendChild(el);
-    wrap.scrollTop = wrap.scrollHeight;
+    if (!fromHistory) wrap.scrollTop = wrap.scrollHeight;
     return;
   }
 
-  /* ── Manager plan bar ── */
-  const isPlan = msg.content.startsWith('**Plan:**') || msg.content.startsWith('Plan:');
+  /* Manager plan bar */
+  const isPlan = /^\*\*Plan:\*\*|^Plan:/i.test(msg.content.trim());
   if (role === 'manager' && isPlan) {
     const el = document.createElement('div');
     el.className = 'plan-bar';
-    el.innerHTML = `
-      <span class="plan-agent">🎯 Manager</span>
-      <span class="plan-text">${md(msg.content)}</span>
+    el.innerHTML = `<span class="plan-badge">🎯 Manager</span>
+      <span class="plan-text">${esc(msg.content.replace(/^\*\*Plan:\*\*\s*/,'').replace(/^Plan:\s*/i,''))}</span>
       <span class="plan-time">${msg.time}</span>`;
     wrap.appendChild(el);
-    wrap.scrollTop = wrap.scrollHeight;
+    if (!fromHistory) wrap.scrollTop = wrap.scrollHeight;
     return;
   }
 
-  /* ── Agent result card ── */
-  const id = 'rc-' + (++cardCounter);
-  const preview = msg.content.replace(/<[^>]*>|[#*`]/g,' ').replace(/\s+/g,' ').trim().slice(0,110);
-  const hasMore = msg.content.length > 110;
+  /* Agent result card */
+  const id      = 'rc' + (++cardCount);
+  const preview = (msg.content || '').replace(/[#*`|]/g,' ').replace(/\s+/g,' ').trim().slice(0, 100);
 
   const el = document.createElement('div');
-  el.className = 'result-card open'; // open by default so latest is visible
-  el.style.borderColor = color + '30';
+  el.className = 'result-card open';
+  el.style.setProperty('--accent', color);
+  el.style.borderColor = color + '28';
   el.innerHTML = `
     <div class="rc-header" onclick="toggleCard('${id}',this.parentElement)">
-      <div class="rc-av" style="background:${color}22">${emoji}</div>
-      <span class="rc-name" style="color:${color}">${escHtml(msg.name || meta.name)}</span>
-      <span class="rc-preview">${escHtml(preview)}${hasMore ? '…' : ''}</span>
+      <div class="rc-av" style="background:${color}18">${emoji}</div>
+      <span class="rc-name" style="color:${color}">${esc(msg.name || meta.name)}</span>
+      <span class="rc-preview">${esc(preview)}${msg.content.length > 100 ? '…' : ''}</span>
       <span class="rc-time">${msg.time}</span>
-      <span class="rc-toggle">▾</span>
+      <span class="rc-arrow">▾</span>
     </div>
     <div class="rc-body" id="${id}">
-      <div class="rc-content">${md(msg.content)}</div>
+      <div class="rc-scroll">
+        <div class="md">${md(msg.content)}</div>
+      </div>
     </div>`;
 
   // Collapse previously open cards
-  wrap.querySelectorAll('.result-card.open').forEach(c => {
-    c.classList.remove('open');
-    const toggle = c.querySelector('.rc-toggle');
-    if (toggle) toggle.style.transform = '';
-  });
+  wrap.querySelectorAll('.result-card.open').forEach(c => c.classList.remove('open'));
 
   wrap.appendChild(el);
-  wrap.scrollTop = wrap.scrollHeight;
+  if (!fromHistory) wrap.scrollTop = wrap.scrollHeight;
 }
 
 function toggleCard(id, card) {
-  const body   = document.getElementById(id);
-  const toggle = card.querySelector('.rc-toggle');
-  const isOpen = card.classList.contains('open');
-  card.classList.toggle('open', !isOpen);
-  if (toggle) toggle.style.transform = isOpen ? '' : 'rotate(180deg)';
+  card.classList.toggle('open');
 }
 
 /* ── WEBSOCKET ── */
 let ws;
-
 function connect() {
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
   const liveEl = document.getElementById('liveEl');
-
-  ws.onopen  = () => { liveEl.textContent='LIVE';    liveEl.className='live'; };
-  ws.onclose = () => { liveEl.textContent='OFFLINE'; liveEl.className='live off'; setTimeout(connect,3000); };
-
+  ws.onopen  = () => { liveEl.textContent = 'LIVE';    liveEl.className = 'live'; };
+  ws.onclose = () => { liveEl.textContent = 'OFFLINE'; liveEl.className = 'live off'; setTimeout(connect, 3000); };
   ws.onmessage = e => {
     const data = JSON.parse(e.data);
     if (data.type === 'init') {
       data.agents.forEach(updateCard);
-      data.history.forEach(addMessage);
+      data.history.forEach(m => addMessage(m, true));
+      const wrap = document.getElementById('results');
+      wrap.scrollTop = wrap.scrollHeight;
     } else if (data.type === 'agents') {
       data.agents.forEach(updateCard);
     } else if (data.type === 'chat') {
-      addMessage(data.message);
+      addMessage(data.message, false);
     }
   };
 }
@@ -513,7 +571,7 @@ function sendTask() {
   const input = document.getElementById('taskInput');
   const text  = input.value.trim();
   if (!text || !ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type:'task', content:text }));
+  ws.send(JSON.stringify({ type: 'task', content: text }));
   input.value = '';
   input.style.height = 'auto';
 }
@@ -522,7 +580,7 @@ document.getElementById('sendBtn').addEventListener('click', sendTask);
 document.getElementById('taskInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendTask(); }
   setTimeout(() => {
-    const el = document.getElementById('taskInput');
+    const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   });
@@ -532,8 +590,8 @@ document.getElementById('taskInput').addEventListener('keydown', e => {
 (function tick() {
   const n = new Date();
   document.getElementById('clockEl').textContent =
-    [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
-  setTimeout(tick,1000);
+    [n.getHours(), n.getMinutes(), n.getSeconds()].map(v => String(v).padStart(2,'0')).join(':');
+  setTimeout(tick, 1000);
 })();
 
 connect();

@@ -23,6 +23,7 @@ state = StateManager(
 )
 
 N8N_MANAGER_WEBHOOK = os.getenv("N8N_MANAGER_WEBHOOK", "")
+ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
 clients: set[WebSocket] = set()
 
 # ── Lifespan: start/stop TG bot alongside FastAPI ────────────────────────────
@@ -149,6 +150,82 @@ async def n8n_callback(request: Request):
 async def api_tasks():
     tasks = await state.get_tasks(limit=50)
     return JSONResponse({"tasks": tasks})
+
+
+# ── REST: ideas board ─────────────────────────────────────────────────────────
+
+@app.post("/api/ideas")
+async def api_create_idea(request: Request):
+    body = await request.json()
+    content = (body.get("content") or "").strip()
+    if not content:
+        return JSONResponse({"ok": False, "error": "empty content"}, status_code=400)
+    idea = state.create_idea(content)
+    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+    asyncio.create_task(_plan_idea(idea["id"], content))
+    return JSONResponse({"ok": True, "idea": idea})
+
+
+@app.get("/api/ideas")
+async def api_get_ideas():
+    return JSONResponse({"ideas": state.get_ideas()})
+
+
+@app.post("/api/ideas/{idea_id}/start")
+async def api_start_idea(idea_id: int):
+    idea = state.start_idea(idea_id)
+    if not idea:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    state._current_idea_id = idea_id
+    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+    await _forward_to_n8n(idea["content"])
+    return JSONResponse({"ok": True})
+
+
+async def _plan_idea(idea_id: int, content: str) -> None:
+    """Call Anthropic Haiku to create an analysis + plan for an idea."""
+    system = (
+        "Ты — менеджер команды AI-агентов. Пользователь описывает идею. Твоя задача:\n"
+        "1. Кратко описать суть идеи (2-3 предложения)\n"
+        "2. Составить пошаговый план выполнения через агентов\n\n"
+        "Доступные агенты: researcher (поиск информации), writer (написание статей), "
+        "deployer (публикация в RSS/Дзен), coder (написание кода), analyst (анализ данных), "
+        "ux-auditor (анализ UI/UX), site-coder (HTML/CSS/JS)\n\n"
+        "Формат ответа:\n"
+        "**Анализ:** [краткое описание]\n\n"
+        "**План:**\n"
+        "1. Researcher: [что делает]\n"
+        "2. Writer: [что делает]\n"
+        "...\n\n"
+        "Отвечай по-русски, кратко и конкретно."
+    )
+    api_key = ANTHROPIC_API_KEY
+    if not api_key:
+        state.update_idea_plan(idea_id, "⚠️ ANTHROPIC_API_KEY не задан. Добавьте его в переменные окружения.")
+        await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+        return
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 600,
+                    "system": system,
+                    "messages": [{"role": "user", "content": content}],
+                },
+            )
+            data = r.json()
+            plan_text = (data.get("content") or [{}])[0].get("text") or "Не удалось создать план."
+    except Exception as e:
+        plan_text = f"Ошибка при создании плана: {e}"
+    state.update_idea_plan(idea_id, plan_text)
+    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
 
 
 # ── REST: articles + RSS feed for Яндекс Дзен ────────────────────────────────

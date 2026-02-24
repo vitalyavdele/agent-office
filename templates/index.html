@@ -217,6 +217,26 @@
     </template>
   </div>
 
+  <!-- Tab bar -->
+  <div class="flex-shrink-0 flex gap-1 px-4 py-2 bg-[#0d0d1a] border-b border-[#181828]">
+    <button @click="activeTab='chat'"
+            :class="activeTab==='chat' ? 'bg-violet-600/20 text-violet-300 border-violet-500/30' : 'text-slate-600 border-transparent hover:text-slate-400'"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all">
+      <span>💬</span><span>Чат</span>
+    </button>
+    <button @click="activeTab='ideas'; loadIdeas()"
+            :class="activeTab==='ideas' ? 'bg-violet-600/20 text-violet-300 border-violet-500/30' : 'text-slate-600 border-transparent hover:text-slate-400'"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all">
+      <span>💡</span><span>Идеи</span>
+      <span x-show="ideas.filter(i=>i.status==='planned').length > 0"
+            class="bg-violet-500 text-white text-[9px] font-bold px-1.5 rounded-full ml-0.5"
+            x-text="ideas.filter(i=>i.status==='planned').length"></span>
+    </button>
+  </div>
+
+  <!-- ─── Chat tab ─────────────────────────────────────────────── -->
+  <div x-show="activeTab==='chat'" class="flex-1 flex flex-col overflow-hidden">
+
   <!-- Messages feed -->
   <div class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2" x-ref="feed">
 
@@ -313,7 +333,92 @@
         </svg>
       </button>
     </div>
-  </div>
+  </div><!-- end chat tab -->
+
+  <!-- ─── Ideas tab ────────────────────────────────────────────── -->
+  <div x-show="activeTab==='ideas'" class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Idea input -->
+    <div class="flex-shrink-0 border-b border-[#181828] bg-[#0d0d1a] px-4 py-3">
+      <div class="flex items-end gap-2 bg-[#111120] border border-[#1e1e32] rounded-2xl px-4 py-2.5 transition-all focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/10">
+        <textarea x-model="newIdeaText" x-ref="taIdea"
+                  @keydown.ctrl.enter.prevent="submitIdea()"
+                  @input="resizeTAIdea()" rows="1"
+                  placeholder="Опишите идею... (Ctrl+Enter) — агенты создадут план автоматически"
+                  class="flex-1 bg-transparent border-none outline-none text-[14px] text-slate-100 placeholder-slate-700 resize-none min-h-[22px] max-h-[80px] leading-relaxed"></textarea>
+        <button @click="submitIdea()"
+                :class="newIdeaText.trim() ? 'bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-600/25' : 'bg-[#1e1e32] text-slate-700 cursor-default'"
+                class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all active:scale-90">
+          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Ideas list -->
+    <div class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+
+      <!-- Empty state -->
+      <div x-show="ideas.length === 0"
+           class="flex-1 flex flex-col items-center justify-center h-full" style="opacity:.15">
+        <div class="text-5xl mb-3">💡</div>
+        <div class="text-[15px] font-bold">Нет идей</div>
+        <div class="text-sm text-slate-400 mt-1">Введите идею выше — агенты создадут план</div>
+      </div>
+
+      <!-- Idea cards -->
+      <template x-for="idea in ideas" :key="idea.id">
+        <div class="bg-[#111120] border border-[#1e1e32] rounded-2xl overflow-hidden transition-all hover:border-[#252540]"
+             :class="idea.status==='active' ? 'border-violet-500/30 bg-violet-500/5' : ''">
+
+          <!-- Card header -->
+          <div class="flex items-center justify-between px-4 pt-3.5 pb-2 gap-3">
+            <div class="flex items-center gap-2 flex-wrap min-w-0">
+              <span class="text-[10px] font-black tracking-wider uppercase px-2 py-1 rounded-full flex items-center gap-1.5 flex-shrink-0"
+                    :class="{
+                      'bg-amber-500/15 text-amber-400': idea.status==='planning',
+                      'bg-violet-500/15 text-violet-300': idea.status==='planned',
+                      'bg-emerald-500/15 text-emerald-400': idea.status==='active',
+                      'bg-slate-700/50 text-slate-500': idea.status==='done',
+                    }">
+                <span x-show="idea.status==='planning'" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0"></span>
+                <span x-text="{planning:'Анализ...', planned:'Готов к запуску', active:'Выполняется', done:'Готово'}[idea.status]||idea.status"></span>
+              </span>
+              <span class="text-[10px] text-slate-700 flex-shrink-0" x-text="fmtDate(idea.created_at)"></span>
+            </div>
+            <button x-show="idea.status==='planned'"
+                    @click="startIdea(idea.id)"
+                    class="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-[12px] font-semibold px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-violet-600/25 flex-shrink-0">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              В работу
+            </button>
+          </div>
+
+          <!-- Idea text -->
+          <div class="px-4 pb-2 text-[13.5px] text-slate-200 leading-relaxed">
+            <p x-text="idea.content"></p>
+          </div>
+
+          <!-- Plan -->
+          <div x-show="idea.plan_text" class="px-4 pb-4">
+            <div class="mt-1 bg-[#0b0b14] border border-[#1e1e32] rounded-xl px-4 py-3">
+              <div class="md-content" x-html="renderMd(idea.plan_text || '')"></div>
+            </div>
+          </div>
+
+          <!-- Result -->
+          <div x-show="idea.status==='done' && idea.result" class="px-4 pb-4">
+            <div class="mt-1 bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-4 py-3 text-[12px] text-emerald-300">
+              <div class="font-bold mb-1 text-emerald-400">✅ Результат</div>
+              <p x-text="idea.result"></p>
+            </div>
+          </div>
+
+        </div>
+      </template>
+    </div>
+  </div><!-- end ideas tab -->
 
 </div>
 
@@ -330,10 +435,13 @@ function app() {
     agents:      [],
     messages:    [],
     allTasks:    [],
+    ideas:       [],
     inputText:   '',
+    newIdeaText: '',
     micActive:   false,
     ws:          null,
     activeAgent: null,   // null = show all; string = agent key
+    activeTab:   'chat', // 'chat' | 'ideas'
 
     /* ─── Agent catalog (static) ─────────────────────── */
     AGENTS: {
@@ -363,6 +471,7 @@ function app() {
       this.buildAgents();
       this.connect();
       this.loadTasks();
+      this.loadIdeas();
       this.startClock();
       this.initVoice();
       setInterval(() => this.loadTasks(), 10000);
@@ -397,6 +506,8 @@ function app() {
           this.$nextTick(() => this.scrollFeed());
         } else if (d.type === 'tasks_update') {
           this.loadTasks();
+        } else if (d.type === 'ideas_update') {
+          this.ideas = d.ideas || [];
         }
       };
     },
@@ -429,6 +540,46 @@ function app() {
       const d = new Date(iso);
       return d.toLocaleDateString('ru-RU', { day:'numeric', month:'short' })
            + ' ' + d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+    },
+
+    /* ─── Ideas ──────────────────────────────────────── */
+    async loadIdeas() {
+      try {
+        const r = await fetch('/api/ideas');
+        const d = await r.json();
+        this.ideas = d.ideas || [];
+      } catch(e) {}
+    },
+
+    async submitIdea() {
+      const txt = this.newIdeaText.trim();
+      if (!txt) return;
+      this.newIdeaText = '';
+      this.$nextTick(() => {
+        const ta = this.$refs.taIdea;
+        if (ta) ta.style.height = 'auto';
+      });
+      try {
+        await fetch('/api/ideas', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: txt}),
+        });
+      } catch(e) {}
+    },
+
+    async startIdea(id) {
+      try {
+        await fetch(`/api/ideas/${id}/start`, {method: 'POST'});
+        this.activeTab = 'chat';
+      } catch(e) {}
+    },
+
+    resizeTAIdea() {
+      const ta = this.$refs.taIdea;
+      if (!ta) return;
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 80) + 'px';
     },
 
     /* ─── Sidebar helpers ────────────────────────────── */

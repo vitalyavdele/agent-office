@@ -100,6 +100,10 @@ class StateManager:
         self._article_counter: int = 0
         self._current_task_id: Optional[int] = None
 
+        self.ideas: list[dict] = []
+        self._idea_counter: int = 0
+        self._current_idea_id: Optional[int] = None
+
         self.db: Optional[SupabaseClient] = None
         if supabase_url and supabase_key:
             self.db = SupabaseClient(supabase_url, supabase_key)
@@ -257,7 +261,7 @@ class StateManager:
             self._save_message(msg)
             await broadcast({"type": "chat", "message": msg})
 
-        # When manager goes idle, mark current task as done
+        # When manager goes idle, mark current task and idea as done
         if key == "manager" and payload.get("status") == "idle":
             task_id = self._current_task_id
             self._current_task_id = None
@@ -268,6 +272,51 @@ class StateManager:
                 # Fallback: after server restart _current_task_id is lost —
                 # mark the most recent processing task as done anyway
                 asyncio.create_task(self._finish_latest_processing(summary))
+            idea_id = self._current_idea_id
+            self._current_idea_id = None
+            if idea_id:
+                self.finish_idea(idea_id, summary)
+
+    # ── Ideas board ───────────────────────────────────────────────────────────
+
+    def create_idea(self, content: str) -> dict:
+        self._idea_counter += 1
+        idea = {
+            "id":         self._idea_counter,
+            "content":    content,
+            "status":     "planning",
+            "plan_text":  None,
+            "result":     None,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        self.ideas.insert(0, idea)
+        if len(self.ideas) > 100:
+            self.ideas.pop()
+        return idea
+
+    def update_idea_plan(self, idea_id: int, plan_text: str) -> None:
+        for idea in self.ideas:
+            if idea["id"] == idea_id:
+                idea["status"] = "planned"
+                idea["plan_text"] = plan_text
+                break
+
+    def start_idea(self, idea_id: int) -> Optional[dict]:
+        for idea in self.ideas:
+            if idea["id"] == idea_id:
+                idea["status"] = "active"
+                return idea
+        return None
+
+    def finish_idea(self, idea_id: int, result: str = "") -> None:
+        for idea in self.ideas:
+            if idea["id"] == idea_id:
+                idea["status"] = "done"
+                idea["result"] = result[:300] if result else ""
+                break
+
+    def get_ideas(self, limit: int = 50) -> list[dict]:
+        return self.ideas[:limit]
 
     # ── Articles (RSS for Яндекс Дзен) ───────────────────────────────────────
 

@@ -520,11 +520,10 @@ function connect() {
 function sendTask() {
   const input = document.getElementById('taskInput');
   const text  = input.value.trim();
-  if (!text || busy || !ws || ws.readyState !== 1) return;
+  if (!text || !ws || ws.readyState !== 1) return;
   ws.send(JSON.stringify({ type: 'task', content: text }));
   input.value = '';
   input.style.height = 'auto';
-  setBusy(true);
 }
 
 document.getElementById('sendBtn').addEventListener('click', sendTask);

@@ -1,5 +1,10 @@
 import asyncio
 import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent / ".env")
 
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -8,25 +13,49 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from agents import StateManager
+import tg_bot
 
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+# ── State ─────────────────────────────────────────────────────────────────────
 
 state = StateManager(
     supabase_url=os.getenv("SUPABASE_URL", ""),
     supabase_key=os.getenv("SUPABASE_ANON_KEY", ""),
 )
 
-# URL of the n8n Manager webhook (set via environment variable)
 N8N_MANAGER_WEBHOOK = os.getenv("N8N_MANAGER_WEBHOOK", "")
-
 clients: set[WebSocket] = set()
 
+# ── Lifespan: start/stop TG bot alongside FastAPI ────────────────────────────
 
-@app.on_event("startup")
-async def startup():
+_tg_app = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _tg_app
     await state.load_history()
 
+    _tg_app = tg_bot.create_app()
+    if _tg_app:
+        tg_bot.set_forward(_forward_to_n8n)
+        await _tg_app.initialize()
+        await _tg_app.start()
+        await _tg_app.updater.start_polling(drop_pending_updates=True)
+        tg_bot.set_bot(_tg_app.bot)
+
+    yield  # ── server running ──
+
+    if _tg_app:
+        await _tg_app.updater.stop()
+        await _tg_app.stop()
+        await _tg_app.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
+templates = Jinja2Templates(directory="templates")
+
+
+# ── Broadcast to all WS clients ───────────────────────────────────────────────
 
 async def broadcast(event: dict):
     dead = set()
@@ -52,7 +81,6 @@ async def ws_handler(websocket: WebSocket):
     await websocket.accept()
     clients.add(websocket)
 
-    # Send current state to newly connected client
     await websocket.send_json({
         "type":    "init",
         "agents":  state.agent_states(),
@@ -74,7 +102,7 @@ async def ws_handler(websocket: WebSocket):
         clients.discard(websocket)
 
 
-# ── REST: receive task from browser (alternative to WS) ──────────────────────
+# ── REST: receive task (from browser or external) ────────────────────────────
 
 @app.post("/api/task")
 async def api_task(request: Request):
@@ -111,6 +139,7 @@ async def n8n_callback(request: Request):
         return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
 
     await state.apply_callback(broadcast, payload)
+    await _maybe_notify_tg(payload)
     return JSONResponse({"ok": True})
 
 
@@ -136,15 +165,9 @@ async def _forward_to_n8n(task: str):
         })
         return
 
-    # Save task to Supabase and track id for completion
     task_id = await state.save_task(task)
     state._current_task_id = task_id
-
-    # Notify clients about updated task list
     await broadcast({"type": "tasks_update"})
-
-    # Fire-and-forget: don't block on n8n response.
-    # Results come back asynchronously via /api/n8n/callback.
     asyncio.create_task(_call_n8n(task))
 
 
@@ -153,4 +176,25 @@ async def _call_n8n(task: str):
         async with httpx.AsyncClient(timeout=300) as client:
             await client.post(N8N_MANAGER_WEBHOOK, json={"task": task})
     except Exception:
-        pass  # Agents send results via callback — errors here are non-fatal
+        pass
+
+
+# ── TG notifications on key events ───────────────────────────────────────────
+
+async def _maybe_notify_tg(payload: dict):
+    """Send Telegram notification on significant status changes."""
+    agent  = payload.get("agent", "")
+    status = payload.get("status", "")
+    msg    = payload.get("message", "")
+
+    # Notify when manager goes idle (= task complete)
+    if agent == "manager" and status == "idle":
+        summary = msg or "Команда завершила работу."
+        short   = summary[:300] + ("…" if len(summary) > 300 else "")
+        asyncio.create_task(tg_bot.notify(f"✅ <b>Задача выполнена</b>\n\n{short}"))
+        return
+
+    # Notify when manager shares a plan
+    if agent == "manager" and status == "thinking" and msg:
+        short = msg[:200] + ("…" if len(msg) > 200 else "")
+        asyncio.create_task(tg_bot.notify(f"🎯 <b>Manager</b>: {short}"))

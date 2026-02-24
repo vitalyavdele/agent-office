@@ -4,782 +4,519 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Office</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'ao': {
+          bg:      '#0a0a12',
+          card:    '#111120',
+          border:  '#1e1e32',
+          hover:   '#1a1a2e',
+        }
+      }
+    }
+  }
+}
+</script>
 <style>
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* Catppuccin Mocha — readable dark palette */
-:root {
-  --base:    #1e1e2e;
-  --mantle:  #181825;
-  --crust:   #11111b;
-  --surface0:#313244;
-  --surface1:#45475a;
-  --surface2:#585b70;
-  --overlay0:#6c7086;
-  --overlay1:#7f849c;
-  --text:    #cdd6f4;
-  --subtext1:#bac2de;
-  --subtext0:#a6adc8;
-  --mauve:   #cba6f7;
-  --blue:    #89b4fa;
-  --sky:     #89dceb;
-  --teal:    #94e2d5;
-  --green:   #a6e3a1;
-  --yellow:  #f9e2af;
-  --peach:   #fab387;
-  --red:     #f38ba8;
-  --sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mono:    'Fira Code','Cascadia Code',monospace;
-}
-
-html, body { height: 100%; overflow: hidden; }
-body {
-  background: var(--base); color: var(--text);
-  font-family: var(--sans); font-size: 14px;
-  -webkit-font-smoothing: antialiased;
-  display: flex; flex-direction: column;
-}
-
-/* ── HEADER ───────────────────────────────────────── */
-header {
-  height: 50px; flex-shrink: 0;
-  display: flex; align-items: center; padding: 0 20px;
-  justify-content: space-between;
-  background: var(--mantle);
-  border-bottom: 1px solid var(--surface0);
-  z-index: 30;
-}
-.logo { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: var(--text); }
-.logo-mark {
-  width: 28px; height: 28px; border-radius: 9px;
-  background: linear-gradient(135deg, #7c6af5, var(--mauve));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; box-shadow: 0 0 20px rgba(203,166,247,.35);
-}
-.hdr-right { display: flex; align-items: center; gap: 14px; }
-.live-badge {
-  display: flex; align-items: center; gap: 5px;
-  padding: 4px 11px 4px 9px; border-radius: 99px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .3px;
-  background: rgba(166,227,161,.12); border: 1px solid rgba(166,227,161,.3); color: var(--green);
-}
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livepulse 2s infinite; }
-@keyframes livepulse { 0%,100%{box-shadow:0 0 0 0 rgba(166,227,161,.7)} 50%{box-shadow:0 0 0 5px rgba(166,227,161,0)} }
-.live-badge.off { background: rgba(243,139,168,.1); border-color: rgba(243,139,168,.28); color: var(--red); }
-.live-badge.off .live-dot { animation: none; }
-.clock { font-size: 13px; color: var(--overlay1); font-variant-numeric: tabular-nums; font-family: var(--mono); }
-
-/* ── WORKSPACE ────────────────────────────────────── */
-.workspace {
-  flex-shrink: 0;
-  background: var(--mantle);
-  border-bottom: 1px solid var(--surface0);
-  padding: 12px 16px 11px;
-}
-.workspace-label {
-  font-size: 9.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--overlay0); margin-bottom: 10px;
-}
-.agents-row { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; }
-.agents-row::-webkit-scrollbar { height: 3px; }
-.agents-row::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 2px; }
-
-/* ── AGENT CARD ──────────────────────────────────── */
-.agent-card {
-  flex: 1; min-width: 112px; max-width: 152px;
-  background: var(--surface0);
-  border: 1px solid var(--surface1);
-  border-radius: 14px; padding: 13px 10px 10px;
-  display: flex; flex-direction: column; align-items: center;
-  position: relative; overflow: hidden;
-  transition: border-color .35s, box-shadow .35s, background .35s;
-}
-.agent-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: var(--agent-color, transparent); opacity: .7;
-}
-.agent-card[data-status="thinking"] {
-  background: rgba(203,166,247,.08);
-  border-color: rgba(203,166,247,.4);
-  box-shadow: 0 0 24px rgba(203,166,247,.12);
-}
-.agent-card[data-status="working"] {
-  border-color: rgba(205,214,244,.3);
-  box-shadow: 0 0 28px var(--glow-color, rgba(205,214,244,.12));
-}
-.agent-card[data-status="done"] {
-  border-color: rgba(166,227,161,.4);
-  box-shadow: 0 0 24px rgba(166,227,161,.1);
-}
-
-.char-scene {
-  position: relative; width: 68px; height: 68px;
-  display: flex; align-items: flex-end; justify-content: center; margin-bottom: 5px;
-}
-.char-aura {
-  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
-  width: 48px; height: 14px; border-radius: 50%;
-  opacity: 0; transition: opacity .4s; filter: blur(8px);
-}
-[data-status="thinking"] .char-aura { opacity: .5; background: var(--mauve); }
-[data-status="working"]  .char-aura { opacity: .7; }
-[data-status="done"]     .char-aura { opacity: .5; background: var(--green); }
-
-.char-emoji {
-  font-size: 38px; line-height: 1; position: relative; z-index: 2; display: block; transition: filter .3s;
-}
-[data-status="idle"]     .char-emoji { animation: bob 4s ease-in-out infinite; }
-[data-status="thinking"] .char-emoji { animation: think 2s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(203,166,247,.6)); }
-[data-status="working"]  .char-emoji { animation: work .22s ease-in-out infinite alternate; }
-[data-status="done"]     .char-emoji { animation: done .65s cubic-bezier(.22,.68,0,1.3) forwards; }
-
-@keyframes bob   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
-@keyframes think { 0%,100%{transform:rotate(-6deg) translateY(-2px)} 50%{transform:rotate(6deg) translateY(-4px)} }
-@keyframes work  { from{transform:translateX(-2px) rotate(-3deg)} to{transform:translateX(2px) rotate(3deg)} }
-@keyframes done  { 0%{transform:scale(1)} 35%{transform:translateY(-14px) scale(1.15)} 60%{transform:translateY(-4px)} 100%{transform:translateY(0) scale(1)} }
-
-.thought-bubble {
-  position: absolute; top: -2px; right: 0;
-  display: flex; gap: 3px; align-items: center;
-  background: rgba(203,166,247,.2); border: 1px solid rgba(203,166,247,.4);
-  border-radius: 20px; padding: 4px 8px;
-  opacity: 0; transition: opacity .3s; pointer-events: none;
-}
-[data-status="thinking"] .thought-bubble { opacity: 1; }
-.th-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--mauve); animation: th-pulse 1.1s ease-in-out infinite; }
-.th-dot:nth-child(2){ animation-delay:.18s; } .th-dot:nth-child(3){ animation-delay:.36s; }
-@keyframes th-pulse { 0%,100%{transform:scale(.7);opacity:.35} 50%{transform:scale(1);opacity:1} }
-
-.char-particles { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
-.px-item { position: absolute; font-family: var(--mono); font-size: 10px; font-weight: 700; opacity: 0; white-space: nowrap; }
-[data-status="working"] .px-item { opacity: 1; }
-[data-status="working"] .px-item:nth-child(1){ animation: px-up 1.2s ease-out infinite;       left:5%;  top:55%; }
-[data-status="working"] .px-item:nth-child(2){ animation: px-up 1.5s ease-out infinite .35s;  left:65%; top:40%; }
-[data-status="working"] .px-item:nth-child(3){ animation: px-up 1.8s ease-out infinite .7s;   left:28%; top:65%; }
-@keyframes px-up    { 0%{transform:translateY(0);opacity:.9} 100%{transform:translateY(-44px);opacity:0} }
-[data-status="done"] .px-item { opacity: 1; }
-[data-status="done"] .px-item:nth-child(1){ animation: px-burst 1s ease-out 1; left:10%; top:20%; }
-[data-status="done"] .px-item:nth-child(2){ animation: px-burst 1s ease-out .15s 1; left:70%; top:10%; }
-[data-status="done"] .px-item:nth-child(3){ animation: px-burst 1s ease-out .3s  1; left:40%; top:0%;  }
-@keyframes px-burst { 0%{opacity:1;transform:scale(.8)} 60%{opacity:.8;transform:scale(1.2) translateY(-20px)} 100%{opacity:0;transform:scale(.5) translateY(-36px)} }
-
-.char-info { display: flex; align-items: center; gap: 5px; width: 100%; justify-content: center; margin-top: 3px; }
-.char-name { font-size: 12px; font-weight: 700; color: var(--text); }
-.char-badge { font-size: 8px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; }
-.char-badge.idle     { background: rgba(205,214,244,.09); color: var(--overlay1); }
-.char-badge.thinking { background: rgba(203,166,247,.2);  color: var(--mauve);   animation: blink .9s infinite; }
-.char-badge.working  { background: rgba(166,227,161,.16); color: var(--green); }
-.char-badge.done     { background: rgba(166,227,161,.16); color: var(--green); }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
-
-.char-role { font-size: 9px; color: var(--overlay0); text-align: center; margin-top: 1px; }
-.char-task-text {
-  font-size: 9.5px; color: var(--overlay1); text-align: center; margin-top: 4px;
-  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 0 4px; min-height: 13px;
-}
-.char-task-text.active { color: var(--subtext0); }
-.char-prog { width: 100%; height: 2px; background: var(--surface1); border-radius: 1px; margin-top: 9px; overflow: hidden; }
-.char-prog-fill { height: 100%; border-radius: 1px; width: 0; transition: width .5s; }
-.char-prog-fill.idle     { width: 0 !important; background: transparent; }
-.char-prog-fill.thinking { background: var(--mauve); animation: sweep 1.6s ease-in-out infinite; width: 40%; }
-.char-prog-fill.working  { background: currentColor; }
-.char-prog-fill.done     { background: var(--green); width: 100% !important; }
-@keyframes sweep { 0%{transform:translateX(-200%)} 100%{transform:translateX(350%)} }
-
-/* ── TICKER ───────────────────────────────────────── */
-.ticker-strip {
-  flex-shrink: 0; height: 30px;
-  background: var(--crust);
-  border-bottom: 1px solid var(--surface0);
-  display: flex; align-items: center; overflow: hidden;
-}
-.ticker-label {
-  flex-shrink: 0; padding: 0 12px 0 16px;
-  font-size: 9px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase;
-  color: var(--mauve); border-right: 1px solid var(--surface0);
-  height: 100%; display: flex; align-items: center; gap: 6px; white-space: nowrap;
-}
-.ticker-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--mauve); animation: blink 1.5s infinite; }
-.ticker-track {
-  flex: 1; display: flex; align-items: center; overflow: hidden;
-  mask-image: linear-gradient(to right, transparent 0%, black 5%, black 92%, transparent 100%);
-}
-.ticker-inner { display: flex; gap: 8px; align-items: center; white-space: nowrap; padding: 0 14px; }
-.tick-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 2px 10px; border-radius: 99px; font-size: 10.5px; font-weight: 600;
-  border: 1px solid transparent; flex-shrink: 0;
-  animation: tickin .3s ease both;
-}
-@keyframes tickin { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-.tick-sep { color: var(--overlay0); padding: 0 2px; }
-.ticker-empty { font-size: 11px; color: var(--overlay0); }
-
-/* ── LAYOUT ───────────────────────────────────────── */
-.main-body { flex: 1; display: flex; overflow: hidden; }
-
-/* ── KANBAN ───────────────────────────────────────── */
-.kanban-panel {
-  width: 280px; flex-shrink: 0;
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--surface0);
-  background: var(--mantle);
-}
-.kanban-header { padding: 13px 16px 10px; border-bottom: 1px solid var(--surface0); flex-shrink: 0; }
-.kanban-title { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--overlay1); }
-.kanban-body { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-.kanban-body::-webkit-scrollbar { width: 3px; }
-.kanban-body::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 2px; }
-
-.k-col { display: flex; flex-direction: column; gap: 5px; }
-.k-col-head { display: flex; align-items: center; gap: 8px; padding: 5px 6px 4px; position: sticky; top: 0; z-index: 2; background: var(--mantle); }
-.k-dot { width: 7px; height: 7px; border-radius: 50%; }
-.k-col-name { font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
-.k-count { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 99px; background: var(--surface0); color: var(--subtext0); margin-left: auto; }
-
-.k-card {
-  background: var(--surface0); border: 1px solid var(--surface1);
-  border-radius: 10px; padding: 10px 12px;
-  animation: cardin .2s ease both;
-  transition: border-color .15s, background .15s;
-}
-.k-card:hover { border-color: var(--surface2); background: var(--surface1); }
-@keyframes cardin { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-.k-card-text { font-size: 12.5px; color: var(--text); line-height: 1.5; }
-.k-card-meta { font-size: 10px; color: var(--overlay0); margin-top: 5px; }
-.k-card-summary { font-size: 11.5px; color: var(--subtext1); margin-top: 5px; line-height: 1.4; }
-
-.k-dot.pending  { background: var(--yellow); }
-.k-dot.active   { background: var(--mauve); }
-.k-dot.done2    { background: var(--green); }
-.k-col-head.pending .k-col-name { color: var(--yellow); }
-.k-col-head.active  .k-col-name { color: var(--mauve); }
-.k-col-head.done2   .k-col-name { color: var(--green); }
-.k-col-divider { height: 1px; background: var(--surface0); margin: 4px 0 8px; }
-.k-empty { font-size: 11.5px; color: var(--overlay0); padding: 6px; text-align: center; }
-
-/* ── ACTIVITY PANEL — light bg for max readability ── */
-.activity-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: #f2f2f7; }
-.activity-header { padding: 13px 20px 10px; border-bottom: 1px solid #dddde6; flex-shrink: 0; background: #f2f2f7; }
-.activity-title { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #8888a8; }
-
-.feed { flex: 1; overflow-y: auto; padding: 14px 18px 12px; display: flex; flex-direction: column; gap: 8px; background: #f2f2f7; }
-.feed::-webkit-scrollbar { width: 4px; }
-.feed::-webkit-scrollbar-thumb { background: #c4c4d4; border-radius: 2px; }
-
-.empty {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px; pointer-events: none; text-align: center;
-}
-.empty-icon { font-size: 36px; }
-.empty h2 { font-size: 15px; font-weight: 700; color: #9999b8; }
-.empty p { font-size: 13px; color: #aaaacc; line-height: 1.65; max-width: 260px; }
-
-/* User message */
-.user-row { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.user-ts { font-size: 10px; color: #9999b8; }
-.bubble {
-  max-width: 65%;
-  background: linear-gradient(135deg, #5e5df0, #9b72f5);
-  color: #fff; border-radius: 18px 18px 4px 18px;
-  padding: 10px 15px; font-size: 14px; line-height: 1.55;
-  box-shadow: 0 3px 16px rgba(94,93,240,.25);
-}
-
-/* Manager plan */
-.plan {
-  display: flex; align-items: flex-start; gap: 10px;
-  background: rgba(203,166,247,.12); border: 1px solid rgba(160,110,230,.25);
-  border-left: 3px solid #9b72f5;
-  border-radius: 10px; padding: 10px 14px; font-size: 13px;
-}
-.plan-who  { color: #7c3aed; font-weight: 700; flex-shrink: 0; }
-.plan-body { flex: 1; color: #444466; line-height: 1.6; }
-.plan-ts   { flex-shrink: 0; font-size: 10px; color: #9999b8; margin-top: 1px; }
-
-/* Agent message card — white cards, always fully visible */
-.msg-card {
-  background: #ffffff;
-  border: 1px solid #dddde6;
-  border-left-width: 3px;
-  border-radius: 12px; overflow: hidden;
-  animation: cardin .25s ease both;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  transition: box-shadow .15s;
-}
-.msg-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,.1); }
-
-.msg-head {
-  display: flex; align-items: center; gap: 9px;
-  padding: 11px 14px 11px 12px; cursor: pointer; user-select: none;
-}
-.msg-av {
-  width: 26px; height: 26px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
-}
-.msg-name    { font-size: 13px; font-weight: 700; flex-shrink: 0; }
-.msg-preview { flex: 1; font-size: 12.5px; color: #666688; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.msg-ts      { font-size: 10px; color: #9999b8; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.msg-chev    { font-size: 11px; color: #aaaacc; flex-shrink: 0; margin-left: 4px; transition: transform .2s; }
-.msg-card.open .msg-chev { transform: rotate(180deg); }
-
-.msg-body    { display: none; padding: 0 14px 14px 14px; }
-.msg-card.open .msg-body { display: block; }
-.msg-scroll  { max-height: 500px; overflow-y: auto; border-top: 1px solid #eeeef4; padding-top: 12px; }
-.msg-scroll::-webkit-scrollbar { width: 3px; }
-.msg-scroll::-webkit-scrollbar-thumb { background: #c4c4d4; border-radius: 2px; }
-
-/* ── MARKDOWN — dark text on white bg ─────────────── */
-.md { font-size: 13.5px; line-height: 1.78; color: #444466; }
-.md strong { font-weight: 700; color: #222244; }
-.md em { font-style: italic; color: #666688; }
-.md h1 { font-size: 16px; font-weight: 700; color: #222244; margin: 14px 0 6px; }
-.md h2 { font-size: 14px; font-weight: 700; color: #222244; margin: 12px 0 5px; }
-.md h3 { font-size: 13.5px; font-weight: 600; color: #333355; margin: 10px 0 4px; }
-.md p  { margin-bottom: 9px; }
-.md ul, .md ol { padding-left: 20px; margin-bottom: 9px; }
-.md li { margin-bottom: 4px; color: #444466; }
-.md code { background: #f0f0f8; padding: 2px 6px; border-radius: 5px; font-family: var(--mono); font-size: 11.5px; color: #7c3aed; }
-.md pre { background: #1e1e2e; border: 1px solid #dddde6; border-radius: 10px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; }
-.md pre code { background: none; padding: 0; font-size: 12px; color: #cdd6f4; }
-.md blockquote { border-left: 3px solid rgba(124,58,237,.4); padding-left: 13px; color: #666688; margin: 8px 0; }
-.md hr { border: none; border-top: 1px solid #dddde6; margin: 12px 0; }
-.md .tw { overflow-x: auto; margin: 8px 0; border-radius: 8px; border: 1px solid #dddde6; }
-.md table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.md th, .md td { padding: 7px 12px; border-bottom: 1px solid #eeeef4; text-align: left; }
-.md th { background: #f8f8fc; font-weight: 700; color: #333355; }
-.md tr:last-child td { border-bottom: none; }
-
-/* ── INPUT ────────────────────────────────────────── */
-.input-area {
-  flex-shrink: 0; padding: 11px 18px 13px;
-  border-top: 1px solid #dddde6;
-  background: #ffffff;
-  display: flex; align-items: flex-end; gap: 10px;
-}
-.mic-btn {
-  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-  background: #f0f0f8; border: 1px solid #dddde6;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: #8888a8; transition: all .2s;
-}
-.mic-btn:hover { background: #e4e4f0; color: #444466; }
-.mic-btn.recording { background: rgba(243,139,168,.12); border-color: rgba(243,139,168,.4); color: #e05577; animation: micpulse 1s infinite; }
-@keyframes micpulse { 0%,100%{box-shadow:0 0 0 0 rgba(243,139,168,.5)} 50%{box-shadow:0 0 0 8px rgba(243,139,168,0)} }
-
-.input-wrap {
-  flex: 1; display: flex; align-items: flex-end; gap: 9px;
-  background: #f8f8fc; border: 1px solid #dddde6;
-  border-radius: 13px; padding: 10px 10px 10px 15px;
-  transition: border-color .2s, box-shadow .2s;
-}
-.input-wrap:focus-within { border-color: rgba(124,58,237,.4); box-shadow: 0 0 0 3px rgba(124,58,237,.08); }
-#ti {
-  flex: 1; background: none; border: none; outline: none;
-  color: #222244; font-family: var(--sans); font-size: 14px;
-  resize: none; min-height: 22px; max-height: 90px; line-height: 1.5;
-}
-#ti::placeholder { color: #aaaacc; }
-.send-btn {
-  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
-  background: #7c3aed; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; color: #fff;
-  transition: opacity .15s, transform .1s;
-}
-.send-btn:hover { background: #6d28d9; }
-.send-btn:active { transform: scale(.87); }
-.input-hint { font-size: 10px; color: #9999b8; text-align: center; margin-top: 6px; }
-
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 2px; }
+  body { background:#0a0a12; }
+  /* Markdown in dark cards */
+  .md-content { color: #b0b8d0; font-size:13px; line-height:1.75; }
+  .md-content strong { color:#e2e8f0; font-weight:700; }
+  .md-content h1,.md-content h2,.md-content h3 { color:#e2e8f0; font-weight:700; margin:10px 0 4px; }
+  .md-content h1 { font-size:16px; } .md-content h2 { font-size:14px; } .md-content h3 { font-size:13px; }
+  .md-content p { margin-bottom:8px; }
+  .md-content ul,.md-content ol { padding-left:18px; margin-bottom:8px; }
+  .md-content li { margin-bottom:3px; }
+  .md-content code { background:#1e1e32; color:#c4b5fd; padding:2px 5px; border-radius:4px; font-size:11px; font-family:monospace; }
+  .md-content pre { background:#050508; border:1px solid #1e1e32; border-radius:8px; padding:10px 12px; margin:6px 0; overflow-x:auto; }
+  .md-content pre code { background:none; padding:0; color:#a8b8d0; font-size:11.5px; }
+  .md-content blockquote { border-left:3px solid #6d28d9; padding-left:12px; color:#888aaa; margin:6px 0; }
+  .md-content hr { border:none; border-top:1px solid #1e1e32; margin:10px 0; }
+  .md-content table { width:100%; border-collapse:collapse; font-size:12px; }
+  .md-content th,.md-content td { padding:6px 10px; border-bottom:1px solid #1e1e32; text-align:left; }
+  .md-content th { background:#111120; color:#e2e8f0; font-weight:700; }
+  /* Animations */
+  @keyframes bob    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  @keyframes think  { 0%,100%{transform:rotate(-6deg) translateY(-2px)} 50%{transform:rotate(6deg) translateY(-4px)} }
+  @keyframes work   { from{transform:translateX(-2px) rotate(-3deg)} to{transform:translateX(2px) rotate(3deg)} }
+  @keyframes sweep  { 0%{transform:translateX(-200%)} 100%{transform:translateX(350%)} }
+  .anim-bob   { animation:bob   4s ease-in-out infinite; }
+  .anim-think { animation:think 2s ease-in-out infinite; filter:drop-shadow(0 0 8px rgba(167,139,250,.6)); }
+  .anim-work  { animation:work  .22s ease-in-out infinite alternate; }
+  .anim-sweep { animation:sweep 1.6s ease-in-out infinite; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-thumb { background:#1e1e32; border-radius:2px; }
+  ::-webkit-scrollbar-track { background:transparent; }
 </style>
 </head>
-<body>
+<body class="h-screen flex flex-col overflow-hidden text-slate-200" x-data="app()" x-init="init()">
 
-<header>
-  <div class="logo">
-    <div class="logo-mark">✦</div>
-    Agent Office
+<!-- ── HEADER ─────────────────────────────────────────────────── -->
+<header class="h-12 flex-shrink-0 flex items-center justify-between px-5 bg-[#0d0d1a] border-b border-[#1e1e32]">
+  <div class="flex items-center gap-2.5">
+    <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-violet-400 flex items-center justify-center text-sm shadow-lg shadow-violet-500/30">✦</div>
+    <span class="font-bold text-sm tracking-tight">Agent Office</span>
   </div>
-  <div class="hdr-right">
-    <div class="live-badge off" id="liveEl"><div class="live-dot"></div><span id="liveText">OFFLINE</span></div>
-    <div class="clock" id="clockEl">00:00:00</div>
+  <div class="flex items-center gap-3">
+    <div :class="wsLive
+        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+        : 'bg-red-500/10 border-red-500/30 text-red-400'"
+         class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold border">
+      <div :class="wsLive ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'" class="w-1.5 h-1.5 rounded-full"></div>
+      <span x-text="wsLive ? 'LIVE' : 'OFFLINE'"></span>
+    </div>
+    <div class="text-xs text-slate-600 font-mono tabular-nums" x-text="clock"></div>
   </div>
 </header>
 
-<div class="workspace">
-  <div class="workspace-label">Рабочая зона</div>
-  <div class="agents-row" id="agentsRow"></div>
+<!-- ── WORKSPACE ───────────────────────────────────────────────── -->
+<div class="flex-shrink-0 bg-[#0d0d1a] border-b border-[#1e1e32] px-4 pt-3 pb-2.5">
+  <div class="text-[9px] font-black tracking-[1.5px] uppercase text-slate-700 mb-2">Рабочая зона</div>
+  <div class="flex gap-2 overflow-x-auto pb-1">
+    <template x-for="a in agents" :key="a.key">
+      <div :class="{
+              'border-violet-500/40 bg-violet-500/5 shadow-[0_0_20px_rgba(139,92,246,.12)]': a.status==='thinking',
+              'shadow-[0_0_24px_var(--glow)]':  a.status==='working',
+              'border-emerald-500/35': a.status==='done',
+              'border-[#1e1e32]':      a.status==='idle',
+           }"
+           :style="`--glow: ${AGENTS[a.key]?.glow||'rgba(255,255,255,.1)'}`"
+           class="flex-1 min-w-[110px] max-w-[150px] rounded-xl border bg-[#111120] pt-3 pb-2.5 px-2.5 flex flex-col items-center relative overflow-hidden transition-all duration-300 cursor-default">
+
+        <!-- color top stripe -->
+        <div class="absolute top-0 left-0 right-0 h-[3px] opacity-60 rounded-t-xl"
+             :style="`background:${AGENTS[a.key]?.color||'#888'}`"></div>
+
+        <!-- emoji zone -->
+        <div class="relative w-[68px] h-[68px] flex items-end justify-center mb-1">
+          <!-- glow -->
+          <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-12 h-3 rounded-full blur-md transition-opacity duration-400"
+               :style="`background:${AGENTS[a.key]?.color||'#888'};opacity:${a.status==='working'?.7:a.status==='thinking'?.45:0}`"></div>
+          <!-- thought dots -->
+          <div :class="a.status==='thinking' ? 'opacity-100' : 'opacity-0'"
+               class="absolute top-0 right-0 flex gap-0.5 items-center bg-violet-500/20 border border-violet-500/35 rounded-full px-1.5 py-1 transition-opacity duration-300">
+            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out infinite"></div>
+            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out .18s infinite"></div>
+            <div class="w-1 h-1 rounded-full bg-violet-300" style="animation:bounce .9s ease-in-out .36s infinite"></div>
+          </div>
+          <!-- emoji -->
+          <div :class="{
+                 'anim-bob':   a.status==='idle',
+                 'anim-think': a.status==='thinking',
+                 'anim-work':  a.status==='working',
+               }"
+               class="text-[38px] leading-none relative z-10"
+               x-text="AGENTS[a.key]?.emoji||'🤖'"></div>
+        </div>
+
+        <!-- name + badge -->
+        <div class="flex items-center gap-1 mt-0.5">
+          <span class="text-[11.5px] font-bold text-slate-200" x-text="AGENTS[a.key]?.name||a.key"></span>
+          <span :class="{
+                  'bg-slate-700/60 text-slate-600':             a.status==='idle',
+                  'bg-violet-500/20 text-violet-300 animate-pulse': a.status==='thinking',
+                  'bg-emerald-500/20 text-emerald-400':          a.status==='working'||a.status==='done',
+                }"
+                class="text-[7.5px] font-black tracking-[.5px] uppercase px-1.5 py-[2px] rounded-full"
+                x-text="STATUS_RU[a.status]||a.status.toUpperCase()"></span>
+        </div>
+
+        <div class="text-[9px] text-slate-700 mt-0.5" x-text="AGENTS[a.key]?.role||''"></div>
+        <div class="text-[9px] mt-1 truncate w-full text-center px-1 min-h-[12px]"
+             :class="a.status!=='idle' ? 'text-slate-400' : 'text-slate-700'"
+             x-text="a.status!=='idle'&&a.task ? a.task : 'Свободен'"></div>
+
+        <!-- progress bar -->
+        <div class="w-full h-[2px] bg-[#1e1e32] rounded-full mt-2 overflow-hidden">
+          <div :class="{
+                 'w-0 bg-transparent':     a.status==='idle',
+                 'anim-sweep w-[40%] bg-violet-400': a.status==='thinking',
+                 'bg-current':             a.status==='working',
+                 'w-full bg-emerald-400':  a.status==='done',
+               }"
+               :style="`color:${AGENTS[a.key]?.color};${a.status==='working'?'width:'+(a.progress||50)+'%':''}`"
+               class="h-full rounded-full transition-all duration-500"></div>
+        </div>
+      </div>
+    </template>
+  </div>
 </div>
 
-<div class="ticker-strip">
-  <div class="ticker-label"><div class="ticker-dot"></div>СОБЫТИЯ</div>
-  <div class="ticker-track">
-    <div class="ticker-inner" id="tickerInner">
-      <span class="ticker-empty">Ожидание активности агентов…</span>
+<!-- ── EVENT TICKER ────────────────────────────────────────────── -->
+<div class="flex-shrink-0 h-8 bg-[#07070f] border-b border-[#1e1e32] flex items-center overflow-hidden">
+  <div class="flex-shrink-0 h-full flex items-center gap-1.5 px-3 border-r border-[#1e1e32] text-[9px] font-black tracking-[1.4px] uppercase text-violet-500">
+    <div class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse"></div>
+    СОБЫТИЯ
+  </div>
+  <div class="flex-1 overflow-hidden px-3 [mask-image:linear-gradient(to_right,transparent_0%,black_5%,black_92%,transparent_100%)]">
+    <div class="flex gap-2 items-center whitespace-nowrap">
+      <template x-if="tickerEvents.length === 0">
+        <span class="text-xs text-slate-700">Ожидание активности агентов…</span>
+      </template>
+      <template x-for="(ev,i) in [...tickerEvents].reverse()" :key="i">
+        <span :style="`color:${ev.color};background:${ev.color}18;border-color:${ev.color}30`"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold">
+          <span x-text="ev.emoji"></span>
+          <b x-text="ev.name"></b>
+          <span x-text="ev.verb"></span>
+        </span>
+      </template>
     </div>
   </div>
 </div>
 
-<div class="main-body">
+<!-- ── MAIN ────────────────────────────────────────────────────── -->
+<div class="flex-1 flex overflow-hidden">
 
-  <div class="kanban-panel">
-    <div class="kanban-header"><div class="kanban-title">Задачи</div></div>
-    <div class="kanban-body">
-      <div class="k-col">
-        <div class="k-col-head pending">
-          <div class="k-dot pending"></div>
-          <span class="k-col-name">Ожидание</span>
-          <span class="k-count" id="cntPending">0</span>
+  <!-- KANBAN -->
+  <div class="w-[270px] flex-shrink-0 flex flex-col bg-[#0d0d1a] border-r border-[#1e1e32]">
+    <div class="px-4 py-3 border-b border-[#1e1e32]">
+      <div class="text-[10px] font-black tracking-[1.2px] uppercase text-slate-700">Задачи</div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-2.5 flex flex-col gap-4">
+
+      <template x-for="col in kanbanCols" :key="col.key">
+        <div>
+          <div class="flex items-center gap-2 px-1 py-1 sticky top-0 bg-[#0d0d1a] z-10">
+            <div class="w-2 h-2 rounded-full" :style="`background:${col.color}`"></div>
+            <span class="text-[10px] font-black tracking-[.6px] uppercase" :style="`color:${col.color}`" x-text="col.label"></span>
+            <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#1e1e32] text-slate-500" x-text="col.tasks.length"></span>
+          </div>
+          <div class="h-px bg-[#1e1e32] mx-1 mb-1.5"></div>
+          <div x-show="col.tasks.length===0" class="text-xs text-slate-700 text-center py-1">пусто</div>
+          <template x-for="t in col.tasks" :key="t.id">
+            <div :style="col.key==='active' ? 'border-color:'+col.color+'33' : ''"
+                 class="bg-[#111120] border border-[#1e1e32] rounded-xl p-2.5 mb-1.5 hover:border-slate-600 transition-colors">
+              <div class="text-[12.5px] text-slate-200 leading-snug" x-text="t.content.slice(0,100)+(t.content.length>100?'…':'')"></div>
+              <div class="text-[10px] text-slate-600 mt-1.5" x-text="fmtDate(t.created_at)"></div>
+              <div x-show="t.summary" class="text-[11px] text-slate-400 mt-1 leading-snug" x-text="t.summary?t.summary.slice(0,80):''"></div>
+            </div>
+          </template>
         </div>
-        <div class="k-col-divider"></div>
-        <div class="k-empty" id="emptyPending">пусто</div>
-        <div id="listPending"></div>
-      </div>
-      <div class="k-col">
-        <div class="k-col-head active">
-          <div class="k-dot active"></div>
-          <span class="k-col-name">В работе</span>
-          <span class="k-count" id="cntActive">0</span>
-        </div>
-        <div class="k-col-divider"></div>
-        <div class="k-empty" id="emptyActive">пусто</div>
-        <div id="listActive"></div>
-      </div>
-      <div class="k-col">
-        <div class="k-col-head done2">
-          <div class="k-dot done2"></div>
-          <span class="k-col-name">Готово</span>
-          <span class="k-count" id="cntDone">0</span>
-        </div>
-        <div class="k-col-divider"></div>
-        <div class="k-empty" id="emptyDone">пусто</div>
-        <div id="listDone"></div>
-      </div>
+      </template>
     </div>
   </div>
 
-  <div class="activity-panel">
-    <div class="activity-header"><div class="activity-title">Активность</div></div>
-    <div class="feed" id="feed">
-      <div class="empty" id="emptyEl">
-        <div class="empty-icon">✦</div>
-        <h2>Команда готова</h2>
-        <p>Напишите задачу — менеджер распределит её между агентами</p>
+  <!-- FEED -->
+  <div class="flex-1 flex flex-col overflow-hidden bg-[#0a0a12]">
+    <div class="px-5 py-3 border-b border-[#1e1e32] flex-shrink-0">
+      <div class="text-[10px] font-black tracking-[1.2px] uppercase text-slate-700">Активность</div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2.5" x-ref="feed">
+
+      <!-- empty state -->
+      <div x-show="messages.length===0" class="flex-1 flex flex-col items-center justify-center h-full opacity-[.18]">
+        <div class="text-[36px] mb-2">✦</div>
+        <div class="text-base font-bold">Команда готова</div>
+        <div class="text-sm text-slate-400 text-center mt-1 max-w-xs leading-relaxed">Напишите задачу — менеджер распределит её между агентами</div>
       </div>
+
+      <template x-for="(msg, idx) in messages" :key="idx">
+        <div>
+
+          <!-- User bubble -->
+          <div x-show="msg.role==='user'" class="flex flex-col items-end gap-1">
+            <div class="text-[10px] text-slate-700" x-text="msg.time"></div>
+            <div class="max-w-[65%] bg-gradient-to-br from-violet-600 to-purple-700 text-white rounded-[18px] rounded-tr-[4px] px-4 py-2.5 text-[13.5px] leading-relaxed shadow-lg shadow-violet-600/20"
+                 x-text="msg.content"></div>
+          </div>
+
+          <!-- Manager plan -->
+          <div x-show="msg.role==='manager' && isPlan(msg.content)"
+               class="flex items-start gap-2.5 bg-violet-500/8 border border-violet-500/18 border-l-[3px] border-l-violet-500 rounded-xl p-3 text-[13px]">
+            <span class="font-bold text-violet-400 flex-shrink-0">🎯 Manager</span>
+            <span class="flex-1 text-slate-300 leading-relaxed" x-text="stripPlan(msg.content)"></span>
+            <span class="flex-shrink-0 text-[10px] text-slate-600 mt-0.5" x-text="msg.time"></span>
+          </div>
+
+          <!-- Agent result card — always expanded -->
+          <div x-show="msg.role!=='user' && !(msg.role==='manager' && isPlan(msg.content))"
+               :style="`border-left-color:${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}`"
+               class="bg-[#111120] border border-[#1e1e32] border-l-[3px] rounded-xl overflow-hidden hover:border-slate-700 transition-colors">
+            <!-- card header -->
+            <div class="flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer select-none"
+                 :style="`background:linear-gradient(90deg,${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}12 0%,transparent 60%)`"
+                 @click="msg.open = !msg.open">
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[15px] flex-shrink-0"
+                   :style="`background:${msg.color||AGENTS[msg.role]?.color||'#7c6af5'}22`"
+                   x-text="msg.emoji||AGENTS[msg.role]?.emoji||'🤖'"></div>
+              <span class="text-[13px] font-bold flex-shrink-0"
+                    :style="`color:${msg.color||AGENTS[msg.role]?.color||'#a78bfa'}`"
+                    x-text="msg.name||AGENTS[msg.role]?.name||msg.role"></span>
+              <span class="flex-1 text-xs text-slate-500 truncate min-w-0"
+                    x-text="(msg.content||'').replace(/[#*`|\n]/g,' ').replace(/\s+/g,' ').trim().slice(0,90)"></span>
+              <span class="text-[10px] text-slate-600 flex-shrink-0 tabular-nums" x-text="msg.time"></span>
+              <span class="text-[10px] text-slate-600 flex-shrink-0 transition-transform duration-200 ml-1"
+                    :class="msg.open!==false?'rotate-180':''">▾</span>
+            </div>
+            <!-- card body -->
+            <div x-show="msg.open!==false" class="px-4 pb-4 pt-3 border-t border-[#1e1e32]">
+              <div class="md-content" x-html="renderMd(msg.content)"></div>
+            </div>
+          </div>
+
+        </div>
+      </template>
     </div>
   </div>
 
 </div>
 
-<div class="input-area">
-  <button class="mic-btn" id="micBtn" title="Голосовой ввод">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<!-- ── INPUT ───────────────────────────────────────────────────── -->
+<div class="flex-shrink-0 border-t border-[#1e1e32] bg-[#0d0d1a] px-4 py-3 flex items-end gap-3">
+  <button @click="toggleMic()" title="Голосовой ввод"
+          :class="micActive
+            ? 'bg-red-500/15 border-red-500/35 text-red-400 animate-pulse'
+            : 'bg-[#111120] border-[#1e1e32] text-slate-500 hover:text-slate-300 hover:bg-[#1a1a2e]'"
+          class="w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 transition-all">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
       <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
       <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
       <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
     </svg>
   </button>
-  <div style="flex:1;display:flex;flex-direction:column">
-    <div class="input-wrap">
-      <textarea id="ti" rows="1" placeholder="Опишите задачу или зажмите микрофон…"></textarea>
-      <button class="send-btn" id="sendBtn" title="Ctrl+Enter">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+
+  <div class="flex-1 flex flex-col gap-1.5">
+    <div class="flex items-end gap-2 bg-[#111120] border border-[#1e1e32] rounded-xl px-4 py-2.5 transition-all focus-within:border-violet-500/40 focus-within:ring-1 focus-within:ring-violet-500/15">
+      <textarea x-ref="ta" x-model="inputText"
+                @keydown.ctrl.enter.prevent="sendTask()"
+                @input="resizeTA()"
+                rows="1"
+                placeholder="Опишите задачу или зажмите микрофон…"
+                class="flex-1 bg-transparent border-none outline-none text-[14px] text-slate-100 placeholder-slate-700 resize-none min-h-[22px] max-h-[90px] leading-relaxed font-sans"></textarea>
+      <button @click="sendTask()"
+              class="w-8 h-8 rounded-lg bg-violet-600 hover:bg-violet-500 active:scale-90 flex items-center justify-center flex-shrink-0 transition-all">
+        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
           <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
         </svg>
       </button>
     </div>
-    <div class="input-hint">Ctrl+Enter · микрофон для голоса · ответы приходят автоматически</div>
+    <div class="text-[10px] text-slate-800 text-center">Ctrl+Enter · микрофон для голоса · ответы приходят автоматически</div>
   </div>
 </div>
 
+<!-- ── ALPINE APP ──────────────────────────────────────────────── -->
 <script>
-const AGENTS = {
-  'manager':    { name:'Manager',    emoji:'🎯', color:'#cba6f7', role:'Оркестратор',   px:['📋','💡','⭐'], glow:'rgba(203,166,247,.3)' },
-  'researcher': { name:'Researcher', emoji:'🔍', color:'#89b4fa', role:'Исследователь', px:['?','!','🌐'],   glow:'rgba(137,180,250,.3)' },
-  'writer':     { name:'Writer',     emoji:'✍️',  color:'#a6e3a1', role:'Автор',         px:['📝','✨','💬'],  glow:'rgba(166,227,161,.3)' },
-  'coder':      { name:'Coder',      emoji:'💻', color:'#f9e2af', role:'Разработчик',   px:['{}','</>','01'],glow:'rgba(249,226,175,.3)' },
-  'analyst':    { name:'Analyst',    emoji:'📊', color:'#f38ba8', role:'Аналитик',      px:['📈','%','∑'],   glow:'rgba(243,139,168,.3)' },
-  'ux-auditor': { name:'UX Auditor', emoji:'🎨', color:'#fab387', role:'UI/UX',         px:['✏️','◐','🎭'],  glow:'rgba(250,179,135,.3)' },
-  'site-coder': { name:'Site Coder', emoji:'🌐', color:'#89dceb', role:'Frontend',      px:['⚡','<>','∅'],  glow:'rgba(137,220,235,.3)' },
-  'deployer':   { name:'Deployer',   emoji:'🚀', color:'#94e2d5', role:'DevOps',        px:['📦','⚙️','✓'],  glow:'rgba(148,226,213,.3)' },
-};
-const STATUS_RU = { idle:'IDLE', thinking:'ДУМАЕТ', working:'АКТИВЕН', done:'ГОТОВО' };
+function app() {
+  return {
 
-let cardsBuilt = false;
+    /* ─── State ──────────────────────────────────────── */
+    wsLive:       false,
+    clock:        '00:00:00',
+    agents:       [],
+    messages:     [],
+    allTasks:     [],
+    tickerEvents: [],
+    inputText:    '',
+    micActive:    false,
+    ws:           null,
 
-function buildAgentCards(serverAgents) {
-  const row = document.getElementById('agentsRow');
-  row.innerHTML = '';
-  const list = (serverAgents && serverAgents.length)
-    ? serverAgents
-    : Object.keys(AGENTS).map(k => ({ key:k, status:'idle', task:'', progress:0 }));
+    /* ─── Agent catalog ──────────────────────────────── */
+    AGENTS: {
+      'manager':    { name:'Manager',    emoji:'🎯', color:'#a78bfa', role:'Оркестратор',   glow:'rgba(167,139,250,.3)' },
+      'researcher': { name:'Researcher', emoji:'🔍', color:'#60a5fa', role:'Исследователь', glow:'rgba(96,165,250,.3)'  },
+      'writer':     { name:'Writer',     emoji:'✍️',  color:'#4ade80', role:'Автор',         glow:'rgba(74,222,128,.3)'  },
+      'coder':      { name:'Coder',      emoji:'💻', color:'#fbbf24', role:'Разработчик',   glow:'rgba(251,191,36,.3)'  },
+      'analyst':    { name:'Analyst',    emoji:'📊', color:'#f87171', role:'Аналитик',      glow:'rgba(248,113,113,.3)' },
+      'ux-auditor': { name:'UX Auditor', emoji:'🎨', color:'#fb923c', role:'UI/UX',         glow:'rgba(251,146,60,.3)'  },
+      'site-coder': { name:'Site Coder', emoji:'🌐', color:'#22d3ee', role:'Frontend',      glow:'rgba(34,211,238,.3)'  },
+      'deployer':   { name:'Deployer',   emoji:'🚀', color:'#86efac', role:'DevOps',        glow:'rgba(134,239,172,.3)' },
+    },
+    STATUS_RU: { idle:'IDLE', thinking:'ДУМАЕТ', working:'АКТИВЕН', done:'ГОТОВО' },
+    VERB:      { thinking:'думает', working:'работает', done:'завершил' },
 
-  list.forEach(a => {
-    const d = AGENTS[a.key] || { name:a.name||a.key, emoji:'🤖', color:'#cdd6f4', role:'', px:['…','·','•'], glow:'rgba(205,214,244,.2)' };
-    const el = document.createElement('div');
-    el.className      = 'agent-card';
-    el.id             = 'acard-' + a.key;
-    el.dataset.agent  = a.key;
-    el.dataset.status = a.status || 'idle';
-    el.style.setProperty('--glow-color', d.glow);
-    el.style.setProperty('--agent-color', d.color);
-    el.innerHTML = `
-      <div class="char-scene">
-        <div class="char-aura" style="background:${d.color}"></div>
-        <div class="thought-bubble"><div class="th-dot"></div><div class="th-dot"></div><div class="th-dot"></div></div>
-        <div class="char-particles">
-          <span class="px-item" style="color:${d.color}">${d.px[0]}</span>
-          <span class="px-item" style="color:${d.color}">${d.px[1]}</span>
-          <span class="px-item" style="color:${d.color}">${d.px[2]}</span>
-        </div>
-        <div class="char-emoji">${d.emoji}</div>
-      </div>
-      <div class="char-info">
-        <span class="char-name">${d.name}</span>
-        <span class="char-badge idle" id="abadge-${a.key}">IDLE</span>
-      </div>
-      <div class="char-role">${d.role}</div>
-      <div class="char-task-text" id="atask-${a.key}">Свободен</div>
-      <div class="char-prog">
-        <div class="char-prog-fill idle" id="aprog-${a.key}" style="color:${d.color}"></div>
-      </div>`;
-    row.appendChild(el);
-    applyAgentState(a);
-  });
-}
+    /* ─── Computed: kanban columns ───────────────────── */
+    get kanbanCols() {
+      return [
+        { key:'pending', label:'Ожидание', color:'#fbbf24', tasks: this.allTasks.filter(t=>t.status==='pending') },
+        { key:'active',  label:'В работе', color:'#a78bfa', tasks: this.allTasks.filter(t=>t.status==='processing') },
+        { key:'done',    label:'Готово',   color:'#4ade80', tasks: this.allTasks.filter(t=>t.status==='done') },
+      ];
+    },
 
-function applyAgentState(a) {
-  const card  = document.getElementById('acard-'  + a.key);
-  const badge = document.getElementById('abadge-' + a.key);
-  const task  = document.getElementById('atask-'  + a.key);
-  const prog  = document.getElementById('aprog-'  + a.key);
-  if (!card) return;
-  const st = a.status || 'idle';
-  card.dataset.status = st;
-  card.classList.toggle('glow', st === 'working' || st === 'done');
-  badge.className   = 'char-badge ' + st;
-  badge.textContent = STATUS_RU[st] || st.toUpperCase();
-  task.textContent  = (st !== 'idle' && a.task) ? a.task : 'Свободен';
-  task.className    = 'char-task-text' + (st !== 'idle' ? ' active' : '');
-  prog.className    = 'char-prog-fill ' + st;
-  if (st === 'working') prog.style.width = (a.progress || 50) + '%';
-  else if (st !== 'thinking') prog.style.width = '';
-}
+    /* ─── Init ───────────────────────────────────────── */
+    init() {
+      this.buildAgents();
+      this.connect();
+      this.loadTasks();
+      this.startClock();
+      this.initVoice();
+      setInterval(() => this.loadTasks(), 10000);
+    },
 
-/* TICKER */
-const tickerEvents = [];
-const VERB = { thinking:'думает', working:'работает', done:'завершил' };
+    buildAgents() {
+      this.agents = Object.keys(this.AGENTS).map(k => ({
+        key: k, status: 'idle', task: '', progress: 0,
+      }));
+    },
 
-function pushTick(agentKey, status, taskText) {
-  const d = AGENTS[agentKey];
-  if (!d || status === 'idle') return;
-  tickerEvents.push({ emoji:d.emoji, name:d.name, color:d.color, verb:VERB[status]||status, task:taskText||'' });
-  if (tickerEvents.length > 20) tickerEvents.shift();
-  renderTicker();
-}
+    /* ─── WebSocket ──────────────────────────────────── */
+    connect() {
+      const p = location.protocol === 'https:' ? 'wss' : 'ws';
+      this.ws = new WebSocket(`${p}://${location.host}/ws`);
+      this.ws.onopen  = () => { this.wsLive = true; };
+      this.ws.onclose = () => { this.wsLive = false; setTimeout(() => this.connect(), 3000); };
+      this.ws.onmessage = e => {
+        const d = JSON.parse(e.data);
+        if (d.type === 'init') {
+          // merge server agents into local
+          d.agents.forEach(a => this.applyAgent(a));
+          // load history — all open by default
+          this.messages = d.history.map(m => ({ ...m, open: true }));
+          this.$nextTick(() => this.scrollFeed());
+          this.loadTasks();
+        } else if (d.type === 'agents') {
+          d.agents.forEach(a => {
+            const prev = this.agents.find(x => x.key === a.key);
+            const prevSt = prev?.status || 'idle';
+            this.applyAgent(a);
+            if (a.status && a.status !== prevSt && a.status !== 'idle') {
+              this.pushTick(a.key, a.status, a.task || '');
+            }
+          });
+        } else if (d.type === 'chat') {
+          this.messages.push({ ...d.message, open: true });
+          this.$nextTick(() => this.scrollFeed());
+        } else if (d.type === 'tasks_update') {
+          this.loadTasks();
+        }
+      };
+    },
 
-function renderTicker() {
-  const inner = document.getElementById('tickerInner');
-  if (!tickerEvents.length) { inner.innerHTML = '<span class="ticker-empty">Ожидание активности агентов…</span>'; return; }
-  inner.innerHTML = tickerEvents.slice().reverse().map((ev, i) => {
-    const task = ev.task ? ` — <span style="opacity:.6">${esc(ev.task.slice(0,45))}${ev.task.length>45?'…':''}</span>` : '';
-    return `<span class="tick-pill" style="color:${ev.color};background:${ev.color}18;border-color:${ev.color}30">${ev.emoji} <b>${ev.name}</b> ${ev.verb}${task}</span>`
-         + (i < tickerEvents.length-1 ? '<span class="tick-sep">·</span>' : '');
-  }).join('');
-}
+    applyAgent(a) {
+      const idx = this.agents.findIndex(x => x.key === a.key);
+      if (idx >= 0) {
+        this.agents[idx] = { ...this.agents[idx], ...a };
+      } else {
+        this.agents.push({ key: a.key, status: 'idle', task: '', progress: 0, ...a });
+      }
+    },
 
-/* KANBAN */
-async function loadTasks() {
-  try {
-    const r = await fetch('/api/tasks');
-    const d = await r.json();
-    renderKanban(d.tasks || []);
-  } catch(e) {}
-}
-function renderKanban(tasks) {
-  fillCol(tasks.filter(t=>t.status==='pending'),    'listPending','cntPending','emptyPending');
-  fillCol(tasks.filter(t=>t.status==='processing'), 'listActive', 'cntActive', 'emptyActive');
-  fillCol(tasks.filter(t=>t.status==='done'),       'listDone',   'cntDone',   'emptyDone');
-}
-function fillCol(tasks, listId, cntId, emptyId) {
-  document.getElementById(cntId).textContent     = tasks.length;
-  document.getElementById(emptyId).style.display = tasks.length ? 'none' : '';
-  const list = document.getElementById(listId);
-  list.innerHTML = '';
-  tasks.slice(0,20).forEach(t => {
-    const d  = new Date(t.created_at);
-    const ds = d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) + ' ' + d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
-    const el = document.createElement('div');
-    el.className = 'k-card';
-    const txt = (t.content||'').slice(0,120) + (t.content&&t.content.length>120?'…':'');
-    el.innerHTML = `<div class="k-card-text">${esc(txt)}</div><div class="k-card-meta">${ds}</div>`
-                 + (t.summary ? `<div class="k-card-summary">${esc(t.summary.slice(0,80))}</div>` : '');
-    list.appendChild(el);
-  });
-}
+    scrollFeed() {
+      const f = this.$refs.feed;
+      if (f) f.scrollTop = f.scrollHeight;
+    },
 
-/* FEED */
-const seen = new Set();
-let msgCn = 0;
+    /* ─── Tasks ──────────────────────────────────────── */
+    async loadTasks() {
+      try {
+        const r = await fetch('/api/tasks');
+        const d = await r.json();
+        this.allTasks = d.tasks || [];
+      } catch(e) {}
+    },
 
-function addMsg(msg, hist) {
-  const k = `${msg.role}|${(msg.content||'').slice(0,80)}`;
-  if (seen.has(k)) return;
-  seen.add(k);
-  document.getElementById('emptyEl')?.remove();
+    fmtDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'})
+           + ' ' + d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    },
 
-  const feed = document.getElementById('feed');
-  const def  = AGENTS[msg.role] || null;
-  const col  = msg.color || (def && def.color) || '#cba6f7';
-  const emo  = msg.emoji || (def && def.emoji) || '🤖';
-  const nm   = msg.name  || (def && def.name)  || msg.role;
-
-  if (msg.role === 'user') {
-    const el = document.createElement('div');
-    el.className = 'user-row';
-    el.innerHTML = `<div class="user-ts">${msg.time}</div><div class="bubble">${esc(msg.content)}</div>`;
-    feed.appendChild(el);
-    if (!hist) feed.scrollTop = feed.scrollHeight;
-    return;
-  }
-
-  const isPlan = /^\*\*Plan:\*\*|^Plan:/i.test((msg.content||'').trim());
-  if (msg.role === 'manager' && isPlan) {
-    const txt = msg.content.replace(/^\*\*Plan:\*\*\s*/,'').replace(/^Plan:\s*/i,'');
-    const el = document.createElement('div');
-    el.className = 'plan';
-    el.innerHTML = `<span class="plan-who">🎯 Manager</span><span class="plan-body">${esc(txt)}</span><span class="plan-ts">${msg.time}</span>`;
-    feed.appendChild(el);
-    if (!hist) feed.scrollTop = feed.scrollHeight;
-    return;
-  }
-
-  const id = 'mc' + (++msgCn);
-  const preview = (msg.content||'').replace(/[#*`|\n]/g,' ').replace(/\s+/g,' ').trim().slice(0,100);
-  const el = document.createElement('div');
-  // Only newest card stays open, others stay as visible collapsed headers
-  el.className = 'msg-card open';
-  el.style.borderLeftColor = col;
-  el.innerHTML = `
-    <div class="msg-head" onclick="toggleMsg(this.parentElement)"
-         style="background:linear-gradient(90deg,${col}12 0%,transparent 65%)">
-      <div class="msg-av" style="background:${col}22">${emo}</div>
-      <span class="msg-name" style="color:${col}">${esc(nm)}</span>
-      <span class="msg-preview">${esc(preview)}${msg.content.length>100?'…':''}</span>
-      <span class="msg-ts">${msg.time}</span>
-      <span class="msg-chev">▾</span>
-    </div>
-    <div class="msg-body" id="${id}">
-      <div class="msg-scroll"><div class="md">${mdRender(msg.content)}</div></div>
-    </div>`;
-  feed.appendChild(el);
-  if (!hist) feed.scrollTop = feed.scrollHeight;
-}
-
-function toggleMsg(card) { card.classList.toggle('open'); }
-
-/* MARKDOWN */
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-function tbl(block) {
-  const rows = block.trim().split('\n').filter(r=>r.trim());
-  if (rows.length < 2) return esc(block);
-  const sep  = r => /^[\|\s\-:]+$/.test(r);
-  const prow = r => r.replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
-  let h = '<div class="tw"><table><thead><tr>';
-  prow(rows[0]).forEach(c => h+=`<th>${c}</th>`);
-  h += '</tr></thead><tbody>';
-  rows.slice(2).filter(r=>!sep(r)).forEach(r=>{ h+='<tr>'; prow(r).forEach(c=>h+=`<td>${c}</td>`); h+='</tr>'; });
-  return h+'</tbody></table></div>';
-}
-
-function mdRender(raw) {
-  const cb = [];
-  let t = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_,c)=>{ cb.push(c.trim()); return `\x00${cb.length-1}\x00`; });
-  t = t.replace(/((?:\|.+\n?)+)/g, b=>tbl(b));
-  t = t.replace(/`([^`]+)`/g, (_,c)=>`<code>${esc(c)}</code>`);
-  t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');
-  t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
-  t = t.replace(/^---+$/gm,'<hr>');
-  t = t.replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m=>`<ul>${m}</ul>`);
-  t = t.replace(/^>\s+(.+)$/gm,'<blockquote>$1</blockquote>');
-  t = t.split(/\n{2,}/).map(c=>{ c=c.trim(); if(!c) return ''; if(/^<(h[1-3]|ul|ol|hr|blockquote|pre|div|table)/.test(c)) return c; return `<p>${c.replace(/\n/g,'<br>')}</p>`; }).join('\n');
-  t = t.replace(/\x00(\d+)\x00/g, (_,i)=>`<pre><code>${esc(cb[+i])}</code></pre>`);
-  return t;
-}
-
-/* WEBSOCKET */
-let ws;
-function connect() {
-  const p = location.protocol==='https:'?'wss':'ws';
-  ws = new WebSocket(`${p}://${location.host}/ws`);
-  const liv  = document.getElementById('liveEl');
-  const livt = document.getElementById('liveText');
-  ws.onopen  = () => { liv.className='live-badge'; livt.textContent='LIVE'; };
-  ws.onclose = () => { liv.className='live-badge off'; livt.textContent='OFFLINE'; setTimeout(connect,3000); };
-  ws.onmessage = e => {
-    const d = JSON.parse(e.data);
-    if (d.type==='init') {
-      buildAgentCards(d.agents); cardsBuilt=true;
-      d.agents.forEach(applyAgentState);
-      d.history.forEach(m=>addMsg(m,true));
-      document.getElementById('feed').scrollTop=999999;
-      loadTasks();
-    } else if (d.type==='agents') {
-      if (!cardsBuilt) { buildAgentCards(d.agents); cardsBuilt=true; }
-      d.agents.forEach(a => {
-        const prev   = document.getElementById('acard-'+a.key);
-        const prevSt = prev ? prev.dataset.status : 'idle';
-        applyAgentState(a);
-        if (a.status && a.status!==prevSt && a.status!=='idle') pushTick(a.key, a.status, a.task||'');
+    /* ─── Ticker ─────────────────────────────────────── */
+    pushTick(key, status, task) {
+      const d = this.AGENTS[key];
+      if (!d || status === 'idle') return;
+      this.tickerEvents.push({
+        emoji: d.emoji, name: d.name, color: d.color,
+        verb: this.VERB[status] || status, task,
       });
-    } else if (d.type==='chat') {
-      addMsg(d.message, false);
-    } else if (d.type==='tasks_update') {
-      loadTasks();
-    }
-  };
+      if (this.tickerEvents.length > 20) this.tickerEvents.shift();
+    },
+
+    /* ─── Feed helpers ───────────────────────────────── */
+    isPlan(content) {
+      return /^\*\*Plan:\*\*|^Plan:/i.test((content||'').trim());
+    },
+    stripPlan(content) {
+      return (content||'').replace(/^\*\*Plan:\*\*\s*/,'').replace(/^Plan:\s*/i,'');
+    },
+
+    /* ─── Markdown ───────────────────────────────────── */
+    renderMd(raw) {
+      if (!raw) return '';
+      const cb = [];
+      let t = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_,c) => { cb.push(c.trim()); return `\x00${cb.length-1}\x00`; });
+      t = t.replace(/`([^`]+)`/g, (_,c) => `<code>${this.esc(c)}</code>`);
+      t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');
+      t = t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+      t = t.replace(/^---+$/gm,'<hr>');
+      t = t.replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+      t = t.replace(/^>\s+(.+)$/gm,'<blockquote>$1</blockquote>');
+      t = t.split(/\n{2,}/).map(c => {
+        c = c.trim(); if (!c) return '';
+        if (/^<(h[1-3]|ul|ol|hr|blockquote|pre)/.test(c)) return c;
+        return `<p>${c.replace(/\n/g,'<br>')}</p>`;
+      }).join('');
+      t = t.replace(/\x00(\d+)\x00/g, (_,i) => `<pre><code>${this.esc(cb[+i])}</code></pre>`);
+      return t;
+    },
+    esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+
+    /* ─── Send task ──────────────────────────────────── */
+    sendTask() {
+      const txt = this.inputText.trim();
+      if (!txt || !this.ws || this.ws.readyState !== 1) return;
+      this.ws.send(JSON.stringify({ type: 'task', content: txt }));
+      this.inputText = '';
+      this.$nextTick(() => {
+        const ta = this.$refs.ta;
+        if (ta) { ta.style.height = 'auto'; }
+      });
+    },
+
+    resizeTA() {
+      const ta = this.$refs.ta;
+      if (!ta) return;
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 90) + 'px';
+    },
+
+    /* ─── Voice ──────────────────────────────────────── */
+    _rec: null,
+    _recRunning: false,
+    initVoice() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
+      const rec = new SR();
+      rec.lang = 'ru-RU'; rec.continuous = false; rec.interimResults = true;
+      rec.onstart  = () => { this.micActive = true; };
+      rec.onend    = () => { this.micActive = false; this._recRunning = false; };
+      rec.onerror  = () => { this.micActive = false; this._recRunning = false; };
+      rec.onresult = e => {
+        let final = '', interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final   += e.results[i][0].transcript;
+          else                      interim += e.results[i][0].transcript;
+        }
+        this.inputText = final || interim;
+        this.$nextTick(() => this.resizeTA());
+      };
+      this._rec = rec;
+    },
+    toggleMic() {
+      if (!this._rec) return;
+      if (this._recRunning) { this._rec.stop(); this._recRunning = false; }
+      else { try { this._rec.start(); this._recRunning = true; } catch(e){} }
+    },
+
+    /* ─── Clock ──────────────────────────────────────── */
+    startClock() {
+      const tick = () => {
+        const n = new Date();
+        this.clock = [n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+        setTimeout(tick, 1000);
+      };
+      tick();
+    },
+
+  }; // end return
 }
-
-setInterval(loadTasks, 10000);  // refresh kanban every 10s
-
-function send() {
-  const inp = document.getElementById('ti');
-  const txt = inp.value.trim();
-  if (!txt||!ws||ws.readyState!==1) return;
-  ws.send(JSON.stringify({type:'task',content:txt}));
-  inp.value=''; inp.style.height='auto';
-}
-document.getElementById('sendBtn').addEventListener('click', send);
-document.getElementById('ti').addEventListener('keydown', e => {
-  if (e.key==='Enter'&&(e.ctrlKey||e.metaKey)) { e.preventDefault(); send(); }
-  setTimeout(()=>{ const el=e.target; el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; });
-});
-
-(function initVoice(){
-  const btn=document.getElementById('micBtn');
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if (!SR) { btn.style.opacity='.35'; btn.style.cursor='not-allowed'; return; }
-  const rec=new SR(); rec.lang='ru-RU'; rec.continuous=false; rec.interimResults=true;
-  let running=false;
-  rec.onstart =()=>btn.classList.add('recording');
-  rec.onend   =()=>{ btn.classList.remove('recording'); running=false; };
-  rec.onerror =()=>{ btn.classList.remove('recording'); running=false; };
-  rec.onresult=e=>{ let f='',im=''; for(let i=0;i<e.results.length;i++){ if(e.results[i].isFinal)f+=e.results[i][0].transcript; else im+=e.results[i][0].transcript; } const ti=document.getElementById('ti'); ti.value=f||im; ti.style.height='auto'; ti.style.height=Math.min(ti.scrollHeight,90)+'px'; };
-  btn.addEventListener('click',()=>{ if(running){rec.stop();running=false;}else{try{rec.start();running=true;}catch(e){}} });
-})();
-
-(function tick(){
-  const n=new Date();
-  document.getElementById('clockEl').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
-  setTimeout(tick,1000);
-})();
-
-buildAgentCards(null); cardsBuilt=false; connect(); loadTasks();
 </script>
 </body>
 </html>

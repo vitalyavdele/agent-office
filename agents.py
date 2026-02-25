@@ -336,6 +336,88 @@ class StateManager:
     def get_articles(self, limit: int = 50) -> list[dict]:
         return self.articles[:limit]
 
+    # ── Diary ─────────────────────────────────────────────────────────────────
+
+    async def add_diary_entry(self, agent: str, event_type: str, content: str) -> None:
+        if not self.db:
+            return
+        try:
+            await self.db.insert("diary", {
+                "agent": agent,
+                "event_type": event_type,
+                "content": content,
+                "created_at": datetime.utcnow().isoformat(),
+            })
+        except Exception as e:
+            print(f"[Supabase] add_diary_entry error: {e}")
+
+    async def get_diary(self, agent: Optional[str] = None, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,agent,event_type,content,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            }
+            if agent:
+                params["agent"] = f"eq.{agent}"
+            return await self.db.select("diary", params)
+        except Exception as e:
+            print(f"[Supabase] get_diary error: {e}")
+            return []
+
+    # ── Scheduled Tasks ──────────────────────────────────────────────────────
+
+    async def create_scheduled_task(self, title: str, horizon: str, priority: str) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.insert_returning("scheduled_tasks", {
+                "title": title,
+                "horizon": horizon,
+                "priority": priority,
+                "status": "pending",
+                "created_at": datetime.utcnow().isoformat(),
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] create_scheduled_task error: {e}")
+            return None
+
+    async def get_scheduled_tasks(
+        self, horizon: Optional[str] = None, status: Optional[str] = None, limit: int = 50,
+    ) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,title,horizon,priority,status,created_at,updated_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            }
+            if horizon:
+                params["horizon"] = f"eq.{horizon}"
+            if status:
+                params["status"] = f"eq.{status}"
+            return await self.db.select("scheduled_tasks", params)
+        except Exception as e:
+            print(f"[Supabase] get_scheduled_tasks error: {e}")
+            return []
+
+    async def update_scheduled_task_status(self, task_id: int, new_status: str) -> bool:
+        if not self.db:
+            return False
+        try:
+            await self.db.update("scheduled_tasks", {"id": task_id}, {
+                "status": new_status,
+                "updated_at": datetime.utcnow().isoformat(),
+            })
+            return True
+        except Exception as e:
+            print(f"[Supabase] update_scheduled_task_status error: {e}")
+            return False
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def add_user_message(self, content: str) -> dict:

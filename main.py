@@ -8,6 +8,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -53,6 +54,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 templates = Jinja2Templates(directory="templates")
 
 
@@ -141,6 +154,15 @@ async def n8n_callback(request: Request):
 
     await state.apply_callback(broadcast, payload)
     await _maybe_notify_tg(payload)
+
+    # Log to diary
+    agent = payload.get("agent", "")
+    message = payload.get("message", "").strip()
+    if agent and message:
+        asyncio.create_task(
+            state.add_diary_entry(agent, "status_change", message)
+        )
+
     return JSONResponse({"ok": True})
 
 
@@ -150,6 +172,72 @@ async def n8n_callback(request: Request):
 async def api_tasks():
     tasks = await state.get_tasks(limit=50)
     return JSONResponse({"tasks": tasks})
+
+
+# ── REST: diary ───────────────────────────────────────────────────────────────
+
+@app.get("/api/diary")
+async def api_diary(agent: str = "", limit: int = 50):
+    entries = await state.get_diary(agent=agent or None, limit=min(limit, 200))
+    return JSONResponse({"diary": entries})
+
+
+# ── REST: scheduled tasks ────────────────────────────────────────────────────
+
+VALID_HORIZONS   = {"now", "day", "week", "month"}
+VALID_PRIORITIES = {"urgent", "normal", "later"}
+VALID_STATUSES   = {"pending", "in_progress", "done", "cancelled"}
+
+
+@app.post("/api/scheduled-tasks")
+async def api_create_scheduled_task(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    title    = (body.get("title") or "").strip()
+    horizon  = body.get("horizon", "now")
+    priority = body.get("priority", "normal")
+
+    if not title:
+        return JSONResponse({"ok": False, "error": "empty title"}, status_code=400)
+    if horizon not in VALID_HORIZONS:
+        return JSONResponse({"ok": False, "error": f"invalid horizon, use: {VALID_HORIZONS}"}, status_code=400)
+    if priority not in VALID_PRIORITIES:
+        return JSONResponse({"ok": False, "error": f"invalid priority, use: {VALID_PRIORITIES}"}, status_code=400)
+
+    task = await state.create_scheduled_task(title, horizon, priority)
+    if not task:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "task": task})
+
+
+@app.get("/api/scheduled-tasks")
+async def api_list_scheduled_tasks(horizon: str = "", status: str = "", limit: int = 50):
+    tasks = await state.get_scheduled_tasks(
+        horizon=horizon or None,
+        status=status or None,
+        limit=min(limit, 200),
+    )
+    return JSONResponse({"tasks": tasks})
+
+
+@app.put("/api/scheduled-tasks/{task_id}/status")
+async def api_update_scheduled_task_status(task_id: int, request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    new_status = body.get("status", "")
+    if new_status not in VALID_STATUSES:
+        return JSONResponse({"ok": False, "error": f"invalid status, use: {VALID_STATUSES}"}, status_code=400)
+
+    ok = await state.update_scheduled_task_status(task_id, new_status)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "db error or not found"}, status_code=500)
+    return JSONResponse({"ok": True})
 
 
 # ── REST: ideas board ─────────────────────────────────────────────────────────

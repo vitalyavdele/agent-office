@@ -313,24 +313,29 @@ async def api_create_idea(request: Request):
     content = (body.get("content") or "").strip()
     if not content:
         return JSONResponse({"ok": False, "error": "empty content"}, status_code=400)
-    idea = state.create_idea(content)
-    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+    idea = await state.create_idea(content)
+    if not idea:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    ideas = await state.get_ideas()
+    await broadcast({"type": "ideas_update", "ideas": ideas})
     asyncio.create_task(_plan_idea(idea["id"], content))
     return JSONResponse({"ok": True, "idea": idea})
 
 
 @app.get("/api/ideas")
 async def api_get_ideas():
-    return JSONResponse({"ideas": state.get_ideas()})
+    ideas = await state.get_ideas()
+    return JSONResponse({"ideas": ideas})
 
 
 @app.post("/api/ideas/{idea_id}/start")
 async def api_start_idea(idea_id: int):
-    idea = state.start_idea(idea_id)
+    idea = await state.start_idea(idea_id)
     if not idea:
         return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
     state._current_idea_id = idea_id
-    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+    ideas = await state.get_ideas()
+    await broadcast({"type": "ideas_update", "ideas": ideas})
     await _forward_to_n8n(idea["content"])
     return JSONResponse({"ok": True})
 
@@ -353,8 +358,9 @@ async def _plan_idea(idea_id: int, content: str) -> None:
     )
     api_key = ANTHROPIC_API_KEY
     if not api_key:
-        state.update_idea_plan(idea_id, "⚠️ ANTHROPIC_API_KEY не задан. Добавьте его в переменные окружения.")
-        await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+        await state.update_idea_plan(idea_id, "⚠️ ANTHROPIC_API_KEY не задан. Добавьте его в переменные окружения.")
+        ideas = await state.get_ideas()
+        await broadcast({"type": "ideas_update", "ideas": ideas})
         return
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -376,8 +382,9 @@ async def _plan_idea(idea_id: int, content: str) -> None:
             plan_text = (data.get("content") or [{}])[0].get("text") or "Не удалось создать план."
     except Exception as e:
         plan_text = f"Ошибка при создании плана: {e}"
-    state.update_idea_plan(idea_id, plan_text)
-    await broadcast({"type": "ideas_update", "ideas": state.get_ideas()})
+    await state.update_idea_plan(idea_id, plan_text)
+    ideas = await state.get_ideas()
+    await broadcast({"type": "ideas_update", "ideas": ideas})
 
 
 # ── REST: articles + RSS feed for Яндекс Дзен ────────────────────────────────
@@ -397,53 +404,46 @@ async def api_articles_post(request: Request):
     if not content:
         return JSONResponse({"ok": False, "error": "empty content"}, status_code=400)
 
-    article     = state.save_article(title, content)
+    article = await state.save_article(title, content)
+    if not article:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
     article_url = f"{RAILWAY_URL}/articles/{article['id']}"
     return JSONResponse({"ok": True, "id": article["id"], "article_url": article_url,
                          "rss_url": f"{RAILWAY_URL}/rss"})
 
 
+def _md_to_html(text: str) -> str:
+    import re
+    text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+    text = re.sub(r'^## (.+)$',  r'<h2>\1</h2>', text, flags=re.MULTILINE)
+    text = re.sub(r'^# (.+)$',   r'<h1>\1</h1>', text, flags=re.MULTILINE)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', text)
+    paragraphs = re.split(r'\n\n+', text)
+    return ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
+
+
 @app.get("/articles/{article_id}")
 async def get_article(article_id: int):
-    for a in state.articles:
-        if a["id"] == article_id:
-            import re
-            def md_to_html(text: str) -> str:
-                text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-                text = re.sub(r'^## (.+)$',  r'<h2>\1</h2>', text, flags=re.MULTILINE)
-                text = re.sub(r'^# (.+)$',   r'<h1>\1</h1>', text, flags=re.MULTILINE)
-                text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-                text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', text)
-                paragraphs = re.split(r'\n\n+', text)
-                return ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
-            title   = a["title"].replace("<", "&lt;")
-            content = md_to_html(a["content"])
-            html = (f'<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">'
-                    f'<title>{title}</title><style>body{{font-family:Georgia,serif;'
-                    f'max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7}}'
-                    f'h1,h2,h3{{font-family:sans-serif}}</style></head>'
-                    f'<body><h1>{title}</h1>{content}</body></html>')
-            return Response(content=html, media_type="text/html; charset=utf-8")
-    return JSONResponse({"error": "not found"}, status_code=404)
+    a = await state.get_article_by_id(article_id)
+    if not a:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    title   = a["title"].replace("<", "&lt;")
+    content = _md_to_html(a["content"])
+    html = (f'<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">'
+            f'<title>{title}</title><style>body{{font-family:Georgia,serif;'
+            f'max-width:800px;margin:40px auto;padding:0 20px;line-height:1.7}}'
+            f'h1,h2,h3{{font-family:sans-serif}}</style></head>'
+            f'<body><h1>{title}</h1>{content}</body></html>')
+    return Response(content=html, media_type="text/html; charset=utf-8")
 
 
 @app.get("/rss")
 async def rss_feed():
-    import re
-
-    def md_to_html(text: str) -> str:
-        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-        text = re.sub(r'^## (.+)$',  r'<h2>\1</h2>', text, flags=re.MULTILINE)
-        text = re.sub(r'^# (.+)$',   r'<h1>\1</h1>', text, flags=re.MULTILINE)
-        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-        text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', text)
-        paragraphs = re.split(r'\n\n+', text)
-        return ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
-
     def esc(s: str) -> str:
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    articles = state.get_articles(limit=50)
+    articles = await state.get_articles(limit=50)
     items = ""
     for a in articles:
         link = f"{RAILWAY_URL}/articles/{a['id']}"
@@ -453,7 +453,7 @@ async def rss_feed():
       <link>{link}</link>
       <guid isPermaLink="true">{link}</guid>
       <pubDate>{a['created_at']}</pubDate>
-      <description><![CDATA[{md_to_html(a['content'])}]]></description>
+      <description><![CDATA[{_md_to_html(a['content'])}]]></description>
     </item>"""
 
     rss = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -467,6 +467,119 @@ async def rss_feed():
   </channel>
 </rss>"""
     return Response(content=rss, media_type="application/rss+xml; charset=utf-8")
+
+
+# ── REST: agent memory ────────────────────────────────────────────────────────
+
+@app.get("/api/memory")
+async def api_get_memory(agent: str = "", memory_type: str = "", limit: int = 50):
+    memories = await state.get_memory(
+        agent=agent or None,
+        memory_type=memory_type or None,
+        limit=min(limit, 200),
+    )
+    return JSONResponse({"memories": memories})
+
+
+@app.get("/api/memory/context/{agent}")
+async def api_get_memory_context(agent: str, limit: int = 20):
+    context = await state.get_memory_context(agent, limit=min(limit, 50))
+    return JSONResponse({"context": context})
+
+
+@app.post("/api/memory")
+async def api_create_memory(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    agent = (body.get("agent") or "").strip()
+    memory_type = (body.get("memory_type") or "").strip()
+    content = (body.get("content") or "").strip()
+
+    if not agent or not memory_type or not content:
+        return JSONResponse({"ok": False, "error": "agent, memory_type, content required"}, status_code=400)
+
+    mem = await state.save_memory(
+        agent=agent,
+        memory_type=memory_type,
+        content=content,
+        source_task_id=body.get("source_task_id"),
+        importance=int(body.get("importance", 5)),
+        tags=body.get("tags", []),
+    )
+    if not mem:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "memory": mem})
+
+
+@app.delete("/api/memory/{memory_id}")
+async def api_delete_memory(memory_id: int):
+    ok = await state.delete_memory(memory_id)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+# ── REST: user profile ───────────────────────────────────────────────────────
+
+@app.get("/api/profile")
+async def api_get_profile():
+    profile = await state.get_profile()
+    return JSONResponse({"profile": profile})
+
+
+@app.put("/api/profile")
+async def api_update_profile(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    category = (body.get("category") or "").strip()
+    key = (body.get("key") or "").strip()
+    value = (body.get("value") or "").strip()
+
+    if not category or not key or not value:
+        return JSONResponse({"ok": False, "error": "category, key, value required"}, status_code=400)
+
+    result = await state.update_profile(
+        category=category,
+        key=key,
+        value=value,
+        source=body.get("source", "explicit"),
+    )
+    if not result:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "profile": result})
+
+
+# ── REST: task feedback ──────────────────────────────────────────────────────
+
+@app.post("/api/feedback")
+async def api_create_feedback(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    task_id = body.get("task_id")
+    agent = (body.get("agent") or "").strip()
+    rating = body.get("rating")
+
+    if not task_id or not agent or not rating:
+        return JSONResponse({"ok": False, "error": "task_id, agent, rating required"}, status_code=400)
+
+    feedback = await state.save_feedback(
+        task_id=int(task_id),
+        agent=agent,
+        rating=int(rating),
+        comment=(body.get("comment") or "").strip(),
+    )
+    if not feedback:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "feedback": feedback})
 
 
 # ── Helper: forward task to n8n ───────────────────────────────────────────────

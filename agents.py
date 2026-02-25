@@ -1,7 +1,6 @@
 """
 State manager for n8n-based agent orchestration.
-Persists messages and tasks to Supabase (if configured).
-Falls back to in-memory only when Supabase is not configured.
+Persists all data to Supabase via REST API.
 """
 import asyncio
 from dataclasses import dataclass
@@ -92,6 +91,25 @@ class SupabaseClient:
                 json=data,
             )
 
+    async def upsert(self, table: str, data: dict, on_conflict: str = "") -> list:
+        headers = {**self.headers, "Prefer": "return=representation,resolution=merge-duplicates"}
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"{self.url}/rest/v1/{table}",
+                headers=headers,
+                json=data,
+            )
+            return r.json() if r.status_code in (200, 201) else []
+
+    async def delete(self, table: str, match: dict) -> None:
+        params = {k: f"eq.{v}" for k, v in match.items()}
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.delete(
+                f"{self.url}/rest/v1/{table}",
+                headers=self.headers,
+                params=params,
+            )
+
 
 # ── State manager ─────────────────────────────────────────────────────────────
 class StateManager:
@@ -100,12 +118,7 @@ class StateManager:
             k: AgentState(key=k, **v) for k, v in AGENT_DEFS.items()
         }
         self.history: list[dict] = []
-        self.articles: list[dict] = []
-        self._article_counter: int = 0
         self._current_task_id: Optional[int] = None
-
-        self.ideas: list[dict] = []
-        self._idea_counter: int = 0
         self._current_idea_id: Optional[int] = None
 
         self.db: Optional[SupabaseClient] = None
@@ -211,7 +224,7 @@ class StateManager:
             return []
         try:
             return await self.db.select("tasks", {
-                "select": "id,created_at,content,status,summary,finished_at",
+                "select": "id,created_at,content,status,summary,finished_at,assigned_agent,priority,tags",
                 "order": "created_at.desc",
                 "limit": str(limit),
             })
@@ -279,66 +292,250 @@ class StateManager:
             idea_id = self._current_idea_id
             self._current_idea_id = None
             if idea_id:
-                self.finish_idea(idea_id, summary)
+                asyncio.create_task(self.finish_idea(idea_id, summary))
 
-    # ── Ideas board ───────────────────────────────────────────────────────────
+    # ── Ideas board (Supabase) ─────────────────────────────────────────────────
 
-    def create_idea(self, content: str) -> dict:
-        self._idea_counter += 1
-        idea = {
-            "id":         self._idea_counter,
-            "content":    content,
-            "status":     "planning",
-            "plan_text":  None,
-            "result":     None,
-            "created_at": datetime.utcnow().isoformat() + "Z",
-        }
-        self.ideas.insert(0, idea)
-        if len(self.ideas) > 100:
-            self.ideas.pop()
-        return idea
+    async def create_idea(self, content: str) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.insert_returning("ideas", {
+                "content": content,
+                "status": "planning",
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] create_idea error: {e}")
+            return None
 
-    def update_idea_plan(self, idea_id: int, plan_text: str) -> None:
-        for idea in self.ideas:
-            if idea["id"] == idea_id:
-                idea["status"] = "planned"
-                idea["plan_text"] = plan_text
-                break
+    async def update_idea_plan(self, idea_id: int, plan_text: str) -> None:
+        if not self.db:
+            return
+        try:
+            await self.db.update("ideas", {"id": idea_id}, {
+                "status": "planned",
+                "plan_text": plan_text,
+            })
+        except Exception as e:
+            print(f"[Supabase] update_idea_plan error: {e}")
 
-    def start_idea(self, idea_id: int) -> Optional[dict]:
-        for idea in self.ideas:
-            if idea["id"] == idea_id:
-                idea["status"] = "active"
-                return idea
-        return None
+    async def start_idea(self, idea_id: int) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            await self.db.update("ideas", {"id": idea_id}, {"status": "active"})
+            rows = await self.db.select("ideas", {
+                "select": "id,content,status,plan_text,result,created_at",
+                "id": f"eq.{idea_id}",
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] start_idea error: {e}")
+            return None
 
-    def finish_idea(self, idea_id: int, result: str = "") -> None:
-        for idea in self.ideas:
-            if idea["id"] == idea_id:
-                idea["status"] = "done"
-                idea["result"] = result[:300] if result else ""
-                break
+    async def finish_idea(self, idea_id: int, result: str = "") -> None:
+        if not self.db:
+            return
+        try:
+            await self.db.update("ideas", {"id": idea_id}, {
+                "status": "done",
+                "result": result[:300] if result else "",
+            })
+        except Exception as e:
+            print(f"[Supabase] finish_idea error: {e}")
 
-    def get_ideas(self, limit: int = 50) -> list[dict]:
-        return self.ideas[:limit]
+    async def get_ideas(self, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            return await self.db.select("ideas", {
+                "select": "id,content,status,plan_text,result,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            })
+        except Exception as e:
+            print(f"[Supabase] get_ideas error: {e}")
+            return []
 
-    # ── Articles (RSS for Яндекс Дзен) ───────────────────────────────────────
+    # ── Articles (Supabase, RSS for Яндекс Дзен) ─────────────────────────────
 
-    def save_article(self, title: str, content: str) -> dict:
-        self._article_counter += 1
-        article = {
-            "id":         self._article_counter,
-            "title":      title,
-            "content":    content,
-            "created_at": datetime.utcnow().isoformat() + "Z",
-        }
-        self.articles.insert(0, article)
-        if len(self.articles) > 100:
-            self.articles.pop()
-        return article
+    async def save_article(self, title: str, content: str) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.insert_returning("articles", {
+                "title": title,
+                "content": content,
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] save_article error: {e}")
+            return None
 
-    def get_articles(self, limit: int = 50) -> list[dict]:
-        return self.articles[:limit]
+    async def get_articles(self, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            return await self.db.select("articles", {
+                "select": "id,title,content,published_url,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            })
+        except Exception as e:
+            print(f"[Supabase] get_articles error: {e}")
+            return []
+
+    async def get_article_by_id(self, article_id: int) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.select("articles", {
+                "select": "id,title,content,published_url,created_at",
+                "id": f"eq.{article_id}",
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] get_article_by_id error: {e}")
+            return None
+
+    # ── Agent Memory ──────────────────────────────────────────────────────────
+
+    async def save_memory(self, agent: str, memory_type: str, content: str,
+                          source_task_id: Optional[int] = None,
+                          importance: int = 5, tags: list[str] | None = None) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            data = {
+                "agent": agent,
+                "memory_type": memory_type,
+                "content": content,
+                "importance": importance,
+                "tags": tags or [],
+            }
+            if source_task_id:
+                data["source_task_id"] = source_task_id
+            rows = await self.db.insert_returning("agent_memory", data)
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] save_memory error: {e}")
+            return None
+
+    async def get_memory(self, agent: Optional[str] = None,
+                         memory_type: Optional[str] = None,
+                         limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,agent,memory_type,content,source_task_id,importance,usage_count,tags,created_at",
+                "order": "importance.desc,created_at.desc",
+                "limit": str(limit),
+            }
+            if agent:
+                params["agent"] = f"eq.{agent}"
+            if memory_type:
+                params["memory_type"] = f"eq.{memory_type}"
+            return await self.db.select("agent_memory", params)
+        except Exception as e:
+            print(f"[Supabase] get_memory error: {e}")
+            return []
+
+    async def get_memory_context(self, agent: str, limit: int = 20) -> list:
+        """Top memories for an agent: own lessons + shared lessons."""
+        if not self.db:
+            return []
+        try:
+            own = await self.db.select("agent_memory", {
+                "select": "id,memory_type,content,importance,tags",
+                "agent": f"eq.{agent}",
+                "order": "importance.desc,created_at.desc",
+                "limit": str(limit),
+            })
+            return own
+        except Exception as e:
+            print(f"[Supabase] get_memory_context error: {e}")
+            return []
+
+    async def delete_memory(self, memory_id: int) -> bool:
+        if not self.db:
+            return False
+        try:
+            await self.db.delete("agent_memory", {"id": memory_id})
+            return True
+        except Exception as e:
+            print(f"[Supabase] delete_memory error: {e}")
+            return False
+
+    # ── User Profile ──────────────────────────────────────────────────────────
+
+    async def get_profile(self) -> list:
+        if not self.db:
+            return []
+        try:
+            return await self.db.select("user_profile", {
+                "select": "id,category,key,value,confidence,source,created_at",
+                "order": "category.asc,key.asc",
+            })
+        except Exception as e:
+            print(f"[Supabase] get_profile error: {e}")
+            return []
+
+    async def update_profile(self, category: str, key: str, value: str,
+                             source: str = "explicit") -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.upsert("user_profile", {
+                "category": category,
+                "key": key,
+                "value": value,
+                "source": source,
+                "confidence": 1.0 if source == "explicit" else 0.5,
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] update_profile error: {e}")
+            return None
+
+    # ── Task Feedback ─────────────────────────────────────────────────────────
+
+    async def save_feedback(self, task_id: int, agent: str,
+                            rating: int, comment: str = "") -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.insert_returning("task_feedback", {
+                "task_id": task_id,
+                "agent": agent,
+                "rating": rating,
+                "comment": comment,
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] save_feedback error: {e}")
+            return None
+
+    # ── Agent Errors ──────────────────────────────────────────────────────────
+
+    async def save_error(self, agent: str, error_type: str, error_detail: str,
+                         task_id: Optional[int] = None) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            data = {
+                "agent": agent,
+                "error_type": error_type,
+                "error_detail": error_detail,
+            }
+            if task_id:
+                data["task_id"] = task_id
+            rows = await self.db.insert_returning("agent_errors", data)
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] save_error error: {e}")
+            return None
 
     # ── Diary ─────────────────────────────────────────────────────────────────
 

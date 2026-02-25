@@ -12,7 +12,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse, Response
-from fastapi.templating import Jinja2Templates
 
 from agents import StateManager
 import tg_bot
@@ -121,9 +120,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-templates = Jinja2Templates(directory="templates")
-
-
 # ── Broadcast to all WS clients ───────────────────────────────────────────────
 
 async def broadcast(event: dict):
@@ -135,12 +131,6 @@ async def broadcast(event: dict):
             dead.add(ws)
     clients.difference_update(dead)
 
-
-# ── Dashboard ─────────────────────────────────────────────────────────────────
-
-@app.get("/")
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
 
 
 # ── WebSocket — browser ↔ dashboard ──────────────────────────────────────────

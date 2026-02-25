@@ -163,6 +163,19 @@ async def n8n_callback(request: Request):
             state.add_diary_entry(agent, "status_change", message)
         )
 
+    # Auto-create quest when agent requests it
+    if payload.get("status") == "quest":
+        quest = await state.create_quest(
+            title=payload.get("quest_title", payload.get("task", "Quest")),
+            description=message or "",
+            quest_type=payload.get("quest_type", "info"),
+            agent=agent,
+            xp_reward=int(payload.get("xp_reward", 10)),
+            data=payload.get("quest_data"),
+        )
+        if quest:
+            await broadcast({"type": "quest_created", "quest": quest})
+
     return JSONResponse({"ok": True})
 
 
@@ -238,6 +251,67 @@ async def api_update_scheduled_task_status(task_id: int, request: Request):
     if not ok:
         return JSONResponse({"ok": False, "error": "db error or not found"}, status_code=500)
     return JSONResponse({"ok": True})
+
+
+# ── REST: quests ──────────────────────────────────────────────────────────────
+
+VALID_QUEST_TYPES = {"provide_token", "api_key", "approve", "top_up", "info"}
+
+
+@app.post("/api/quests")
+async def api_create_quest(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    title       = (body.get("title") or "").strip()
+    description = (body.get("description") or "").strip()
+    quest_type  = body.get("quest_type", "info")
+    agent       = body.get("agent", "")
+    xp_reward   = int(body.get("xp_reward", 10))
+    data        = body.get("data")
+
+    if not title:
+        return JSONResponse({"ok": False, "error": "empty title"}, status_code=400)
+    if quest_type not in VALID_QUEST_TYPES:
+        return JSONResponse({"ok": False, "error": f"invalid quest_type, use: {VALID_QUEST_TYPES}"}, status_code=400)
+
+    quest = await state.create_quest(title, description, quest_type, agent, xp_reward, data)
+    if not quest:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "quest": quest})
+
+
+@app.get("/api/quests")
+async def api_list_quests(status: str = "", limit: int = 50):
+    quests = await state.get_quests(
+        status=status or None,
+        limit=min(limit, 200),
+    )
+    return JSONResponse({"quests": quests})
+
+
+@app.put("/api/quests/{quest_id}/complete")
+async def api_complete_quest(quest_id: int, request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    response = body.get("response")
+    ok = await state.complete_quest(quest_id, response)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "db error or not found"}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+# ── REST: briefing ───────────────────────────────────────────────────────────
+
+@app.get("/api/briefing")
+async def api_briefing():
+    briefing = await state.get_briefing()
+    return JSONResponse(briefing)
 
 
 # ── REST: ideas board ─────────────────────────────────────────────────────────

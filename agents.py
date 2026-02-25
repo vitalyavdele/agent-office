@@ -418,6 +418,106 @@ class StateManager:
             print(f"[Supabase] update_scheduled_task_status error: {e}")
             return False
 
+    # ── Quests ────────────────────────────────────────────────────────────────
+
+    async def create_quest(
+        self, title: str, description: str, quest_type: str, agent: str,
+        xp_reward: int = 10, data: Optional[dict] = None,
+    ) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.insert_returning("quests", {
+                "title": title,
+                "description": description,
+                "quest_type": quest_type,
+                "agent": agent,
+                "status": "pending",
+                "xp_reward": xp_reward,
+                "data": data or {},
+                "created_at": datetime.utcnow().isoformat(),
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] create_quest error: {e}")
+            return None
+
+    async def get_quests(self, status: Optional[str] = None, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,title,description,quest_type,agent,status,data,response,xp_reward,created_at,completed_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            }
+            if status:
+                params["status"] = f"eq.{status}"
+            return await self.db.select("quests", params)
+        except Exception as e:
+            print(f"[Supabase] get_quests error: {e}")
+            return []
+
+    async def complete_quest(self, quest_id: int, response: Optional[dict] = None) -> bool:
+        if not self.db:
+            return False
+        try:
+            update_data: dict = {
+                "status": "completed",
+                "completed_at": datetime.utcnow().isoformat(),
+            }
+            if response is not None:
+                update_data["response"] = response
+            await self.db.update("quests", {"id": quest_id}, update_data)
+            return True
+        except Exception as e:
+            print(f"[Supabase] complete_quest error: {e}")
+            return False
+
+    async def get_briefing(self) -> dict:
+        """24h summary: pending quests, completed tasks, diary entries, active agents."""
+        if not self.db:
+            return {"quests_pending": 0, "tasks_completed_24h": 0, "diary_entries_24h": 0,
+                    "active_agents_24h": [], "last_diary": []}
+        try:
+            from datetime import timedelta
+            since = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+
+            quests_pending, tasks_24h, diary_24h, last_diary = await asyncio.gather(
+                self.db.select("quests", {
+                    "select": "id",
+                    "status": "eq.pending",
+                }),
+                self.db.select("tasks", {
+                    "select": "id",
+                    "status": "eq.done",
+                    "finished_at": f"gte.{since}",
+                }),
+                self.db.select("diary", {
+                    "select": "id,agent",
+                    "created_at": f"gte.{since}",
+                }),
+                self.db.select("diary", {
+                    "select": "id,agent,event_type,content,created_at",
+                    "order": "created_at.desc",
+                    "limit": "5",
+                }),
+            )
+
+            active_agents = list({r["agent"] for r in diary_24h if isinstance(r, dict)})
+
+            return {
+                "quests_pending": len(quests_pending) if isinstance(quests_pending, list) else 0,
+                "tasks_completed_24h": len(tasks_24h) if isinstance(tasks_24h, list) else 0,
+                "diary_entries_24h": len(diary_24h) if isinstance(diary_24h, list) else 0,
+                "active_agents_24h": active_agents,
+                "last_diary": last_diary if isinstance(last_diary, list) else [],
+            }
+        except Exception as e:
+            print(f"[Supabase] get_briefing error: {e}")
+            return {"quests_pending": 0, "tasks_completed_24h": 0, "diary_entries_24h": 0,
+                    "active_agents_24h": [], "last_diary": []}
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def add_user_message(self, content: str) -> dict:

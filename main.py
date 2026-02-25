@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,7 +14,6 @@ from fastapi.responses import JSONResponse, Response
 
 from agents import StateManager
 import tg_bot
-from crew import run_crew
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
@@ -26,59 +24,7 @@ state = StateManager(
 
 N8N_MANAGER_WEBHOOK = os.getenv("N8N_MANAGER_WEBHOOK", "")
 ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY      = os.getenv("OPENAI_API_KEY", "")
-TAVILY_API_KEY      = os.getenv("TAVILY_API_KEY", "")
 clients: set[WebSocket] = set()
-
-# ── Agent Registry — system prompts for each worker role ─────────────────────
-
-AGENT_REGISTRY: dict[str, str] = {
-    "researcher": (
-        "You are a Researcher in an AI agent team.\n"
-        "Your job: synthesize information into clear, structured research reports.\n"
-        "When web search results are provided, ALWAYS base your analysis on them and cite sources.\n"
-        "Format: ## Summary → ## Key Findings (bullets) → ## Sources\n"
-        "Always respond in the same language as the task."
-    ),
-    "writer": (
-        "You are a Writer in an AI agent team specializing in content for Яндекс Дзен.\n"
-        "Your job: create engaging, well-structured articles 800-1500 words.\n"
-        "Format: catchy title → engaging intro (hook) → ## sections with subheadings → conclusion.\n"
-        "Style: conversational, informative, no fluff. Always respond in the same language as the task."
-    ),
-    "coder": (
-        "You are a Coder in an AI agent team.\n"
-        "Your job: write clean, working, production-ready code.\n"
-        "Always include code in proper markdown code blocks with language tags.\n"
-        "Explain key decisions briefly. Follow security best practices."
-    ),
-    "analyst": (
-        "You are an Analyst in an AI agent team.\n"
-        "Your job: analyze data, metrics, and situations to produce actionable insights.\n"
-        "Format: ## Situation → ## Analysis → ## Key Insights (bullets) → ## Recommendations.\n"
-        "Be specific and data-driven. Always respond in the same language as the task."
-    ),
-    "ux-auditor": (
-        "You are a UX Auditor in an AI agent team.\n"
-        "Your job: evaluate interfaces and provide concrete improvement recommendations.\n"
-        "Format severity as 🔴 Critical / 🟡 Major / 🟢 Minor.\n"
-        "Be specific: name the element, describe the problem, suggest the fix."
-    ),
-    "site-coder": (
-        "You are a Site Coder in an AI agent team.\n"
-        "Your job: build web pages and components with HTML, CSS, JavaScript.\n"
-        "Always provide complete, copy-paste-ready code examples.\n"
-        "Use modern CSS (flexbox/grid), semantic HTML, no external dependencies unless specified."
-    ),
-    "deployer": (
-        "You are a Deployer in an AI agent team.\n"
-        "Your job: publish articles and content to the backend.\n"
-        "To publish an article, make a POST request to:\n"
-        "  https://web-production-4e42e.up.railway.app/api/articles\n"
-        "  Body: {\"title\": \"...\", \"content\": \"...\"}\n"
-        "Report the article URL from the response. Always verify before deploying."
-    ),
-}
 
 # ── Lifespan: start/stop TG bot alongside FastAPI ────────────────────────────
 
@@ -222,141 +168,6 @@ async def n8n_callback(request: Request):
             await broadcast({"type": "quest_created", "quest": quest})
 
     return JSONResponse({"ok": True})
-
-
-# ── REST: agent execution (Python/OpenAI workers) ────────────────────────────
-
-@app.post("/api/agent/execute")
-async def agent_execute(request: Request):
-    """
-    Execute a task using a specific agent via OpenAI GPT-4o.
-    Called by n8n Manager instead of individual worker webhooks.
-    Researcher additionally uses Tavily web search for real-time data.
-
-    Request body: { agent: str, task: str, context?: str }
-    Response:     { ok: true, result: str } or { ok: false, error: str }
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
-
-    agent_name = (body.get("agent") or "").strip()
-    task       = (body.get("task") or "").strip()
-    context    = (body.get("context") or "").strip()
-
-    if not agent_name or not task:
-        return JSONResponse({"ok": False, "error": "agent and task are required"}, status_code=400)
-
-    system_prompt = AGENT_REGISTRY.get(agent_name)
-    if not system_prompt:
-        return JSONResponse({"ok": False, "error": f"Unknown agent: {agent_name}"}, status_code=400)
-
-    if not OPENAI_API_KEY:
-        return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not configured"}, status_code=500)
-
-    # ── Tavily web search for researcher ──────────────────────────────────────
-    tavily_context = ""
-    if agent_name == "researcher" and TAVILY_API_KEY:
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                tr = await client.post(
-                    "https://api.tavily.com/search",
-                    json={"api_key": TAVILY_API_KEY, "query": task, "max_results": 5},
-                )
-            results = tr.json().get("results", [])
-            if results:
-                snippets = "\n\n".join(
-                    f"[{r.get('title', '')}] {r.get('url', '')}\n{r.get('content', '')[:400]}"
-                    for r in results
-                )
-                tavily_context = f"Web search results:\n\n{snippets}"
-                print(f"[Tavily] {len(results)} results for: {task[:60]}")
-        except Exception as e:
-            print(f"[Tavily] search error: {e}")
-
-    # Build user message
-    parts = []
-    if tavily_context:
-        parts.append(tavily_context)
-    if context:
-        parts.append(f"Additional context:\n{context}")
-    parts.append(f"Task:\n{task}")
-    user_message = "\n\n".join(parts)
-
-    try:
-        async with httpx.AsyncClient(timeout=150) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "gpt-4o",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message},
-                    ],
-                },
-            )
-        data = r.json()
-        result = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
-        if not result:
-            raise ValueError(f"Empty OpenAI response: {data}")
-        return JSONResponse({"ok": True, "result": result})
-    except Exception as e:
-        print(f"[agent_execute] {agent_name} error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
-
-
-# ── REST: CrewAI multi-agent execution ───────────────────────────────────────
-
-@app.post("/api/crew/execute")
-async def crew_execute(request: Request):
-    """
-    Execute a task using CrewAI agents with real tools, roles, and memory.
-
-    Single-agent mode (backward compatible):
-      { "agent": "researcher", "task": "...", "context": "..." }
-
-    Multi-agent collaborative mode:
-      { "agents": ["researcher", "writer", "deployer"], "task": "..." }
-
-    Response: { ok: true, result: str } or { ok: false, error: str }
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
-
-    task        = (body.get("task") or "").strip()
-    agent_name  = (body.get("agent") or "").strip() or None
-    agent_names = body.get("agents") or None
-    context     = (body.get("context") or "").strip()
-
-    if not task:
-        return JSONResponse({"ok": False, "error": "task is required"}, status_code=400)
-    if not agent_name and not agent_names:
-        return JSONResponse({"ok": False, "error": "agent or agents is required"}, status_code=400)
-
-    if not OPENAI_API_KEY:
-        return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not configured"}, status_code=500)
-
-    try:
-        loop = asyncio.get_event_loop()
-        fn   = functools.partial(
-            run_crew,
-            task_description=task,
-            agent_name=agent_name,
-            agent_names=agent_names,
-            context=context,
-        )
-        result = await loop.run_in_executor(None, fn)
-        return JSONResponse({"ok": True, "result": result})
-    except Exception as e:
-        print(f"[crew_execute] error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 # ── REST: task history ────────────────────────────────────────────────────────
@@ -531,8 +342,7 @@ async def _plan_idea(idea_id: int, content: str) -> None:
         "1. Кратко описать суть идеи (2-3 предложения)\n"
         "2. Составить пошаговый план выполнения через агентов\n\n"
         "Доступные агенты: researcher (поиск информации), writer (написание статей), "
-        "deployer (публикация в RSS/Дзен), coder (написание кода), analyst (анализ данных), "
-        "ux-auditor (анализ UI/UX), site-coder (HTML/CSS/JS)\n\n"
+        "deployer (публикация в RSS/Дзен)\n\n"
         "Формат ответа:\n"
         "**Анализ:** [краткое описание]\n\n"
         "**План:**\n"

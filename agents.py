@@ -4,7 +4,7 @@ Persists messages and tasks to Supabase (if configured).
 Falls back to in-memory only when Supabase is not configured.
 """
 import asyncio
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -15,12 +15,8 @@ import httpx
 AGENT_DEFS = {
     "manager":    {"id": 0, "name": "Manager",    "role": "Orchestrator",   "emoji": "🎯", "color": "#a78bfa"},
     "researcher": {"id": 1, "name": "Researcher", "role": "Web Researcher", "emoji": "🔍", "color": "#38bdf8"},
-    "writer":     {"id": 2, "name": "Writer",     "role": "Content Writer", "emoji": "✍️", "color": "#4ade80"},
-    "coder":      {"id": 3, "name": "Coder",      "role": "Code Engineer",  "emoji": "💻", "color": "#facc15"},
-    "analyst":    {"id": 4, "name": "Analyst",    "role": "Data Analyst",   "emoji": "📊", "color": "#fb7185"},
-    "ux-auditor": {"id": 5, "name": "UX Auditor", "role": "Design Analyst", "emoji": "🎨", "color": "#f97316"},
-    "site-coder": {"id": 6, "name": "Site Coder", "role": "Frontend Dev",   "emoji": "🌐", "color": "#22d3ee"},
-    "deployer":   {"id": 7, "name": "Deployer",   "role": "Git Publisher",  "emoji": "🚀", "color": "#a3e635"},
+    "writer":     {"id": 2, "name": "Writer",     "role": "Content Writer", "emoji": "✍️", "color": "#34d399"},
+    "deployer":   {"id": 3, "name": "Deployer",   "role": "Publisher",      "emoji": "🚀", "color": "#fb923c"},
 }
 
 
@@ -38,7 +34,14 @@ class AgentState:
     progress: int = 0
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "name": self.key,
+            "emoji": self.emoji,
+            "color": self.color,
+            "status": self.status,
+            "task": self.task if self.task != "Свободен" else None,
+            "progress": self.progress,
+        }
 
 
 # ── Supabase REST helper ──────────────────────────────────────────────────────
@@ -244,7 +247,7 @@ class StateManager:
         if "progress" in payload:
             agent.progress = int(payload["progress"])
 
-        await broadcast({"type": "agents", "agents": self.agent_states()})
+        await broadcast({"type": "agent_update", "agent": agent.to_dict()})
 
         if payload.get("message", "").strip():
             msg = {

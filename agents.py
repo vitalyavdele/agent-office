@@ -443,17 +443,42 @@ class StateManager:
             return []
 
     async def get_memory_context(self, agent: str, limit: int = 20) -> list:
-        """Top memories for an agent: own lessons + shared lessons."""
+        """Top memories for an agent: own lessons + shared high-importance lessons + user prefs."""
         if not self.db:
             return []
         try:
-            own = await self.db.select("agent_memory", {
-                "select": "id,memory_type,content,importance,tags",
-                "agent": f"eq.{agent}",
-                "order": "importance.desc,created_at.desc",
-                "limit": str(limit),
-            })
-            return own
+            own, shared, prefs = await asyncio.gather(
+                self.db.select("agent_memory", {
+                    "select": "id,memory_type,content,importance,tags",
+                    "agent": f"eq.{agent}",
+                    "order": "importance.desc,created_at.desc",
+                    "limit": str(min(limit, 15)),
+                }),
+                self.db.select("agent_memory", {
+                    "select": "id,memory_type,content,importance,tags,agent",
+                    "agent": f"neq.{agent}",
+                    "importance": "gte.8",
+                    "order": "importance.desc,created_at.desc",
+                    "limit": "5",
+                }),
+                self.db.select("user_profile", {
+                    "select": "category,key,value",
+                    "order": "category.asc",
+                }),
+            )
+            # Tag shared lessons
+            for item in shared:
+                item["shared_from"] = item.pop("agent", "")
+            context = own + shared
+            if prefs:
+                context.append({
+                    "id": 0,
+                    "memory_type": "user_preferences",
+                    "content": "; ".join(f"{p['key']}: {p['value']}" for p in prefs),
+                    "importance": 10,
+                    "tags": ["profile"],
+                })
+            return context
         except Exception as e:
             print(f"[Supabase] get_memory_context error: {e}")
             return []
@@ -536,6 +561,94 @@ class StateManager:
         except Exception as e:
             print(f"[Supabase] save_error error: {e}")
             return None
+
+    async def get_errors(self, agent: Optional[str] = None, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,agent,task_id,error_type,error_detail,reflection,lesson,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            }
+            if agent:
+                params["agent"] = f"eq.{agent}"
+            return await self.db.select("agent_errors", params)
+        except Exception as e:
+            print(f"[Supabase] get_errors error: {e}")
+            return []
+
+    async def update_error_reflection(self, error_id: int, reflection: str, lesson: str) -> bool:
+        if not self.db:
+            return False
+        try:
+            await self.db.update("agent_errors", {"id": error_id}, {
+                "reflection": reflection,
+                "lesson": lesson,
+            })
+            return True
+        except Exception as e:
+            print(f"[Supabase] update_error_reflection error: {e}")
+            return False
+
+    async def get_agent_stats(self) -> list:
+        """Per-agent stats: tasks completed, avg rating, memory count, error count."""
+        if not self.db:
+            return []
+        try:
+            feedback, memories, errors, tasks = await asyncio.gather(
+                self.db.select("task_feedback", {
+                    "select": "agent,rating",
+                }),
+                self.db.select("agent_memory", {
+                    "select": "agent,id",
+                }),
+                self.db.select("agent_errors", {
+                    "select": "agent,id",
+                }),
+                self.db.select("tasks", {
+                    "select": "id,status,assigned_agent",
+                }),
+            )
+            stats = []
+            for key, defn in AGENT_DEFS.items():
+                agent_fb = [f for f in feedback if isinstance(f, dict) and f.get("agent") == key]
+                agent_mem = [m for m in memories if isinstance(m, dict) and m.get("agent") == key]
+                agent_err = [e for e in errors if isinstance(e, dict) and e.get("agent") == key]
+                agent_tasks = [t for t in tasks if isinstance(t, dict) and t.get("assigned_agent") == key]
+                ratings = [f["rating"] for f in agent_fb if f.get("rating")]
+                stats.append({
+                    "agent": key,
+                    "name": defn["name"],
+                    "emoji": defn["emoji"],
+                    "color": defn["color"],
+                    "role": defn["role"],
+                    "tasks_count": len(agent_tasks),
+                    "avg_rating": round(sum(ratings) / len(ratings), 1) if ratings else None,
+                    "ratings_count": len(ratings),
+                    "memory_count": len(agent_mem),
+                    "error_count": len(agent_err),
+                })
+            return stats
+        except Exception as e:
+            print(f"[Supabase] get_agent_stats error: {e}")
+            return []
+
+    async def get_feedback(self, agent: Optional[str] = None, limit: int = 50) -> list:
+        if not self.db:
+            return []
+        try:
+            params: dict = {
+                "select": "id,task_id,agent,rating,comment,created_at",
+                "order": "created_at.desc",
+                "limit": str(limit),
+            }
+            if agent:
+                params["agent"] = f"eq.{agent}"
+            return await self.db.select("task_feedback", params)
+        except Exception as e:
+            print(f"[Supabase] get_feedback error: {e}")
+            return []
 
     # ── Diary ─────────────────────────────────────────────────────────────────
 

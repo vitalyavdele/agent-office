@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         await _tg_app.shutdown()
 
 
-APP_VERSION = "2.0.0-phase1"
+APP_VERSION = "2.1.0-phase2"
 
 app = FastAPI(lifespan=lifespan, version=APP_VERSION)
 
@@ -161,6 +161,37 @@ async def n8n_callback(request: Request):
         asyncio.create_task(
             state.add_diary_entry(agent, "status_change", message)
         )
+
+    # Save lessons from worker responses
+    lessons = payload.get("lessons_learned")
+    if lessons and agent:
+        if isinstance(lessons, str):
+            lessons = [lessons]
+        for lesson in lessons:
+            if isinstance(lesson, str) and lesson.strip():
+                asyncio.create_task(
+                    state.save_memory(
+                        agent=agent,
+                        memory_type="lesson",
+                        content=lesson.strip(),
+                        source_task_id=state._current_task_id,
+                        importance=6,
+                        tags=["auto_learned"],
+                    )
+                )
+
+    # Save errors from worker responses
+    error_detail = payload.get("error_detail")
+    if error_detail and agent:
+        err = await state.save_error(
+            agent=agent,
+            error_type=payload.get("error_type", "runtime"),
+            error_detail=error_detail,
+            task_id=state._current_task_id,
+        )
+        # Auto-reflect on errors
+        if err:
+            asyncio.create_task(_auto_reflect_error(err["id"]))
 
     # Auto-create quest when agent requests it
     if payload.get("status") == "quest":
@@ -565,6 +596,15 @@ async def api_update_profile(request: Request):
 
 # ── REST: task feedback ──────────────────────────────────────────────────────
 
+@app.get("/api/feedback")
+async def api_get_feedback(agent: str = "", limit: int = 50):
+    feedbacks = await state.get_feedback(
+        agent=agent or None,
+        limit=min(limit, 200),
+    )
+    return JSONResponse({"feedbacks": feedbacks})
+
+
 @app.post("/api/feedback")
 async def api_create_feedback(request: Request):
     try:
@@ -588,6 +628,134 @@ async def api_create_feedback(request: Request):
     if not feedback:
         return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
     return JSONResponse({"ok": True, "feedback": feedback})
+
+
+# ── REST: agent errors + reflection ──────────────────────────────────────────
+
+@app.get("/api/errors")
+async def api_get_errors(agent: str = "", limit: int = 50):
+    errors = await state.get_errors(
+        agent=agent or None,
+        limit=min(limit, 200),
+    )
+    return JSONResponse({"errors": errors})
+
+
+@app.post("/api/errors")
+async def api_create_error(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    agent = (body.get("agent") or "").strip()
+    error_type = (body.get("error_type") or "").strip()
+    error_detail = (body.get("error_detail") or "").strip()
+
+    if not agent or not error_type or not error_detail:
+        return JSONResponse({"ok": False, "error": "agent, error_type, error_detail required"}, status_code=400)
+
+    err = await state.save_error(
+        agent=agent,
+        error_type=error_type,
+        error_detail=error_detail,
+        task_id=body.get("task_id"),
+    )
+    if not err:
+        return JSONResponse({"ok": False, "error": "db error"}, status_code=500)
+    return JSONResponse({"ok": True, "error_record": err})
+
+
+@app.post("/api/errors/{error_id}/reflect")
+async def api_reflect_error(error_id: int):
+    """Use Haiku to analyze an error and generate reflection + lesson, save to memory."""
+    errors = await state.get_errors(limit=200)
+    err = next((e for e in errors if e["id"] == error_id), None)
+    if not err:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+
+    if err.get("reflection"):
+        return JSONResponse({"ok": True, "already_reflected": True, "reflection": err["reflection"], "lesson": err.get("lesson")})
+
+    api_key = ANTHROPIC_API_KEY
+    if not api_key:
+        return JSONResponse({"ok": False, "error": "ANTHROPIC_API_KEY not set"}, status_code=500)
+
+    prompt = (
+        f"Агент: {err['agent']}\n"
+        f"Тип ошибки: {err['error_type']}\n"
+        f"Детали: {err['error_detail']}\n\n"
+        "Проанализируй ошибку. Ответь строго в формате:\n"
+        "REFLECTION: [почему произошла ошибка, 1-2 предложения]\n"
+        "LESSON: [что нужно делать иначе в будущем, 1 предложение]"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 300,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+            text = (r.json().get("content") or [{}])[0].get("text", "")
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"LLM call failed: {e}"}, status_code=500)
+
+    reflection = ""
+    lesson = ""
+    for line in text.split("\n"):
+        line = line.strip()
+        if line.upper().startswith("REFLECTION:"):
+            reflection = line.split(":", 1)[1].strip()
+        elif line.upper().startswith("LESSON:"):
+            lesson = line.split(":", 1)[1].strip()
+
+    if not reflection:
+        reflection = text[:200]
+    if not lesson:
+        lesson = "Нет конкретного урока."
+
+    await state.update_error_reflection(error_id, reflection, lesson)
+
+    # Save lesson to agent memory
+    await state.save_memory(
+        agent=err["agent"],
+        memory_type="lesson",
+        content=lesson,
+        source_task_id=err.get("task_id"),
+        importance=7,
+        tags=["error_reflection", err["error_type"]],
+    )
+
+    return JSONResponse({"ok": True, "reflection": reflection, "lesson": lesson})
+
+
+# ── REST: agent stats ────────────────────────────────────────────────────────
+
+@app.get("/api/agents/stats")
+async def api_agent_stats():
+    stats = await state.get_agent_stats()
+    return JSONResponse({"agents": stats})
+
+
+# ── Helper: auto-reflect on errors ───────────────────────────────────────────
+
+async def _auto_reflect_error(error_id: int):
+    """Background task: call Haiku to reflect on a new error."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"http://localhost:{os.getenv('PORT', '8080')}/api/errors/{error_id}/reflect"
+            )
+    except Exception as e:
+        print(f"[auto_reflect] error: {e}")
 
 
 # ── Helper: forward task to n8n ───────────────────────────────────────────────

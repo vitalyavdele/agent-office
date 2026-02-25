@@ -52,7 +52,9 @@ async def lifespan(app: FastAPI):
         await _tg_app.shutdown()
 
 
-app = FastAPI(lifespan=lifespan)
+APP_VERSION = "2.0.0-phase1"
+
+app = FastAPI(lifespan=lifespan, version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,6 +67,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Health check ─────────────────────────────────────────────────────────────
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "version": APP_VERSION}
 
 # ── Broadcast to all WS clients ───────────────────────────────────────────────
 

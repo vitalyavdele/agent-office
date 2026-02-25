@@ -13,10 +13,11 @@ import httpx
 
 # ── Agent catalogue ───────────────────────────────────────────────────────────
 AGENT_DEFS = {
-    "manager":    {"id": 0, "name": "Manager",    "role": "Orchestrator",   "emoji": "🎯", "color": "#a78bfa"},
-    "researcher": {"id": 1, "name": "Researcher", "role": "Web Researcher", "emoji": "🔍", "color": "#38bdf8"},
-    "writer":     {"id": 2, "name": "Writer",     "role": "Content Writer", "emoji": "✍️", "color": "#34d399"},
-    "deployer":   {"id": 3, "name": "Deployer",   "role": "Publisher",      "emoji": "🚀", "color": "#fb923c"},
+    "manager":    {"id": 0, "name": "Manager",    "role": "Orchestrator",      "emoji": "🎯", "color": "#a78bfa"},
+    "researcher": {"id": 1, "name": "Researcher", "role": "Web Researcher",    "emoji": "🔍", "color": "#38bdf8"},
+    "writer":     {"id": 2, "name": "Writer",     "role": "Spec & Content",    "emoji": "✍️", "color": "#34d399"},
+    "coder":      {"id": 3, "name": "Coder",      "role": "Code Generator",    "emoji": "💻", "color": "#f472b6"},
+    "deployer":   {"id": 4, "name": "Deployer",   "role": "Publisher",         "emoji": "🚀", "color": "#fb923c"},
 }
 
 

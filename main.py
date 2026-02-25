@@ -27,6 +27,61 @@ N8N_MANAGER_WEBHOOK = os.getenv("N8N_MANAGER_WEBHOOK", "")
 ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
 clients: set[WebSocket] = set()
 
+# ── Agent Registry — system prompts for each worker role ─────────────────────
+
+AGENT_REGISTRY: dict[str, str] = {
+    "researcher": (
+        "You are a Researcher in an AI agent team. Your responsibilities:\n"
+        "- Find, analyze, and synthesize information from various sources\n"
+        "- Produce structured research reports with key findings\n"
+        "- Identify gaps and uncertainties in available information\n"
+        "Always respond in the same language as the task. Be thorough but concise."
+    ),
+    "writer": (
+        "You are a Writer in an AI agent team. Your responsibilities:\n"
+        "- Create high-quality written content (articles, reports, documentation, copy)\n"
+        "- Adapt tone and style to the context and audience\n"
+        "- Structure content clearly with headers and logical flow\n"
+        "Always respond in the same language as the task."
+    ),
+    "coder": (
+        "You are a Coder in an AI agent team. Your responsibilities:\n"
+        "- Write clean, working code in the appropriate language\n"
+        "- Debug and fix existing code issues\n"
+        "- Explain technical decisions and trade-offs\n"
+        "- Follow best practices for security and performance\n"
+        "Always include code in proper markdown code blocks."
+    ),
+    "analyst": (
+        "You are an Analyst in an AI agent team. Your responsibilities:\n"
+        "- Analyze data, metrics, and business information\n"
+        "- Identify patterns, trends, and actionable insights\n"
+        "- Make data-driven recommendations\n"
+        "Always structure your analysis with clear sections."
+    ),
+    "ux-auditor": (
+        "You are a UX Auditor in an AI agent team. Your responsibilities:\n"
+        "- Evaluate user interfaces and user experiences\n"
+        "- Identify usability issues and accessibility problems\n"
+        "- Provide actionable improvement recommendations\n"
+        "Structure feedback with severity levels (critical/major/minor)."
+    ),
+    "site-coder": (
+        "You are a Site Coder in an AI agent team. Your responsibilities:\n"
+        "- Build and maintain web applications and websites\n"
+        "- Write HTML, CSS, JavaScript, and work with frameworks\n"
+        "- Optimize for performance, SEO, and accessibility\n"
+        "Always provide complete, working code examples."
+    ),
+    "deployer": (
+        "You are a Deployer in an AI agent team. Your responsibilities:\n"
+        "- Deploy applications and publish content to external services\n"
+        "- For articles: save to the backend via POST /api/articles\n"
+        "- Manage CI/CD pipelines and infrastructure configurations\n"
+        "Always verify prerequisites before deployment steps."
+    ),
+}
+
 # ── Lifespan: start/stop TG bot alongside FastAPI ────────────────────────────
 
 _tg_app = None
@@ -178,6 +233,64 @@ async def n8n_callback(request: Request):
             await broadcast({"type": "quest_created", "quest": quest})
 
     return JSONResponse({"ok": True})
+
+
+# ── REST: agent execution (Python/Claude workers) ────────────────────────────
+
+@app.post("/api/agent/execute")
+async def agent_execute(request: Request):
+    """
+    Execute a task using a specific agent's Claude API call.
+    Called by n8n Manager instead of individual worker webhooks.
+
+    Request body: { agent: str, task: str, context?: str }
+    Response:     { ok: true, result: str } or { ok: false, error: str }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    agent_name = (body.get("agent") or "").strip()
+    task       = (body.get("task") or "").strip()
+    context    = (body.get("context") or "").strip()
+
+    if not agent_name or not task:
+        return JSONResponse({"ok": False, "error": "agent and task are required"}, status_code=400)
+
+    system_prompt = AGENT_REGISTRY.get(agent_name)
+    if not system_prompt:
+        return JSONResponse({"ok": False, "error": f"Unknown agent: {agent_name}"}, status_code=400)
+
+    if not ANTHROPIC_API_KEY:
+        return JSONResponse({"ok": False, "error": "ANTHROPIC_API_KEY not configured"}, status_code=500)
+
+    user_message = f"Context:\n{context}\n\nTask:\n{task}" if context else task
+
+    try:
+        async with httpx.AsyncClient(timeout=150) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-sonnet-4-6",
+                    "max_tokens": 4096,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": user_message}],
+                },
+            )
+        data = r.json()
+        result = ((data.get("content") or [{}])[0]).get("text") or ""
+        if not result:
+            raise ValueError(f"Empty Claude response: {data}")
+        return JSONResponse({"ok": True, "result": result})
+    except Exception as e:
+        print(f"[agent_execute] {agent_name} error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 # ── REST: task history ────────────────────────────────────────────────────────

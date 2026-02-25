@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from agents import StateManager
 import tg_bot
+from crew import run_crew
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
@@ -315,6 +317,55 @@ async def agent_execute(request: Request):
         return JSONResponse({"ok": True, "result": result})
     except Exception as e:
         print(f"[agent_execute] {agent_name} error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+# ── REST: CrewAI multi-agent execution ───────────────────────────────────────
+
+@app.post("/api/crew/execute")
+async def crew_execute(request: Request):
+    """
+    Execute a task using CrewAI agents with real tools, roles, and memory.
+
+    Single-agent mode (backward compatible):
+      { "agent": "researcher", "task": "...", "context": "..." }
+
+    Multi-agent collaborative mode:
+      { "agents": ["researcher", "writer", "deployer"], "task": "..." }
+
+    Response: { ok: true, result: str } or { ok: false, error: str }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
+
+    task        = (body.get("task") or "").strip()
+    agent_name  = (body.get("agent") or "").strip() or None
+    agent_names = body.get("agents") or None
+    context     = (body.get("context") or "").strip()
+
+    if not task:
+        return JSONResponse({"ok": False, "error": "task is required"}, status_code=400)
+    if not agent_name and not agent_names:
+        return JSONResponse({"ok": False, "error": "agent or agents is required"}, status_code=400)
+
+    if not OPENAI_API_KEY:
+        return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not configured"}, status_code=500)
+
+    try:
+        loop = asyncio.get_event_loop()
+        fn   = functools.partial(
+            run_crew,
+            task_description=task,
+            agent_name=agent_name,
+            agent_names=agent_names,
+            context=context,
+        )
+        result = await loop.run_in_executor(None, fn)
+        return JSONResponse({"ok": True, "result": result})
+    except Exception as e:
+        print(f"[crew_execute] error: {e}")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 

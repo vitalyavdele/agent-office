@@ -16,6 +16,7 @@ AGENT_DEFS = {
     "researcher": {"id": 1, "name": "Researcher", "role": "Web Researcher",    "emoji": "🔍", "color": "#38bdf8"},
     "writer":     {"id": 2, "name": "Writer",     "role": "Spec & Content",    "emoji": "✍️", "color": "#34d399"},
     "coder":      {"id": 3, "name": "Coder",      "role": "Code Generator",    "emoji": "💻", "color": "#f472b6"},
+    "qa":         {"id": 5, "name": "QA",         "role": "Quality Assurance", "emoji": "🛡️", "color": "#f59e0b"},
     "deployer":   {"id": 4, "name": "Deployer",   "role": "Publisher",         "emoji": "🚀", "color": "#fb923c"},
 }
 
@@ -32,6 +33,7 @@ class AgentState:
     status:   str = "idle"
     task:     str = "Свободен"
     progress: int = 0
+    last_status_change: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -70,7 +72,13 @@ class SupabaseClient:
                 headers={**self.headers, "Prefer": "return=representation"},
                 json=data,
             )
-            return r.json() if r.status_code in (200, 201) else []
+            if r.status_code in (200, 201):
+                return r.json()
+            import logging
+            logging.getLogger("agent-office").error(
+                f"[Supabase] INSERT {table} → {r.status_code}: {r.text[:300]}"
+            )
+            return []
 
     async def select(self, table: str, params: dict) -> list:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -256,10 +264,15 @@ class StateManager:
 
         if "status" in payload:
             agent.status = payload["status"]
+            from datetime import datetime
+            agent.last_status_change = datetime.utcnow().isoformat()
         if "task" in payload:
             agent.task = payload["task"][:120]
         if "progress" in payload:
-            agent.progress = int(payload["progress"])
+            try:
+                agent.progress = int(payload["progress"])
+            except (ValueError, TypeError):
+                pass
 
         await broadcast({"type": "agent_update", "agent": agent.to_dict()})
 
@@ -278,16 +291,28 @@ class StateManager:
             self._save_message(msg)
             await broadcast({"type": "chat", "message": msg})
 
+        # Use taskId from payload if available (fixes race condition with concurrent tasks)
+        task_id = payload.get("taskId") or self._current_task_id
+
+        # Handle error status from agents
+        if payload.get("status") == "error" and task_id and self.db:
+            error_msg = payload.get("message", "Unknown error")
+            try:
+                await self.db.update("tasks", {"id": task_id}, {
+                    "status": "error",
+                    "summary": f"Agent error: {error_msg[:500]}",
+                })
+            except Exception as e:
+                print(f"[apply_callback] error marking task {task_id} as error: {e}")
+            await broadcast({"type": "tasks_update"})
+
         # When manager goes idle, mark current task and idea as done
         if key == "manager" and payload.get("status") == "idle":
-            task_id = self._current_task_id
             self._current_task_id = None
             summary = payload.get("message", "")
             if task_id:
                 asyncio.create_task(self.finish_task(task_id, summary))
             elif self.db:
-                # Fallback: after server restart _current_task_id is lost —
-                # mark the most recent processing task as done anyway
                 asyncio.create_task(self._finish_latest_processing(summary))
             idea_id = self._current_idea_id
             self._current_idea_id = None
@@ -443,11 +468,18 @@ class StateManager:
             return []
 
     async def get_memory_context(self, agent: str, limit: int = 20) -> list:
-        """Top memories for an agent: own lessons + shared high-importance lessons + user prefs."""
+        """Top memories for an agent: system map + own lessons + shared high-importance + user prefs."""
         if not self.db:
             return []
         try:
-            own, shared, prefs = await asyncio.gather(
+            system_mem, own, shared, prefs = await asyncio.gather(
+                # System memories (ecosystem map, global anti-patterns) — always first
+                self.db.select("agent_memory", {
+                    "select": "id,memory_type,content,importance,tags",
+                    "agent": "eq.system",
+                    "order": "importance.desc",
+                    "limit": "5",
+                }),
                 self.db.select("agent_memory", {
                     "select": "id,memory_type,content,importance,tags",
                     "agent": f"eq.{agent}",
@@ -466,10 +498,12 @@ class StateManager:
                     "order": "category.asc",
                 }),
             )
+            # Filter out system from shared
+            shared = [m for m in shared if m.get("agent") != "system"]
             # Tag shared lessons
             for item in shared:
                 item["shared_from"] = item.pop("agent", "")
-            context = own + shared
+            context = system_mem + own + shared
             if prefs:
                 context.append({
                     "id": 0,
@@ -650,6 +684,125 @@ class StateManager:
             print(f"[Supabase] get_feedback error: {e}")
             return []
 
+    # ── Direct Chat ──────────────────────────────────────────────────────────
+
+    async def save_direct_message(self, agent: str, role: str, content: str) -> None:
+        """Save a direct chat message. role is 'direct_user' or 'direct_agent'."""
+        if not self.db:
+            return
+        try:
+            agent_def = AGENT_DEFS.get(agent, {})
+            await self.db.insert("messages", {
+                "role": role,
+                "name": agent,
+                "emoji": agent_def.get("emoji", "🤖") if role == "direct_agent" else "👤",
+                "color": agent_def.get("color", "#64748b") if role == "direct_agent" else "#6366f1",
+                "content": content,
+                "msg_time": datetime.now().strftime("%H:%M"),
+            })
+        except Exception as e:
+            print(f"[Supabase] save_direct_message error: {e}")
+
+    async def get_direct_messages(self, agent: str, limit: int = 30) -> list:
+        """Get direct chat history for an agent."""
+        if not self.db:
+            return []
+        try:
+            user_msgs, agent_msgs = await asyncio.gather(
+                self.db.select("messages", {
+                    "select": "role,content,created_at",
+                    "name": f"eq.{agent}",
+                    "role": "eq.direct_user",
+                    "order": "created_at.desc",
+                    "limit": str(limit),
+                }),
+                self.db.select("messages", {
+                    "select": "role,content,created_at",
+                    "name": f"eq.{agent}",
+                    "role": "eq.direct_agent",
+                    "order": "created_at.desc",
+                    "limit": str(limit),
+                }),
+            )
+            all_msgs = [m for m in (user_msgs + agent_msgs) if isinstance(m, dict)]
+            all_msgs.sort(key=lambda x: x.get("created_at", ""))
+            all_msgs = all_msgs[-limit:]
+            return [
+                {
+                    "role": "user" if r["role"] == "direct_user" else "assistant",
+                    "content": r["content"],
+                    "created_at": r.get("created_at", ""),
+                }
+                for r in all_msgs
+            ]
+        except Exception as e:
+            print(f"[Supabase] get_direct_messages error: {e}")
+            return []
+
+    # ── Analytics ────────────────────────────────────────────────────────────
+
+    async def get_analytics_overview(self, days: int = 7) -> dict:
+        """Aggregate stats for the analytics dashboard."""
+        if not self.db:
+            return {}
+        try:
+            from datetime import timedelta
+            since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+            tasks, feedback, errors, memories = await asyncio.gather(
+                self.db.select("tasks", {
+                    "select": "id,status,created_at,finished_at",
+                    "created_at": f"gte.{since}",
+                }),
+                self.db.select("task_feedback", {
+                    "select": "rating,created_at",
+                    "created_at": f"gte.{since}",
+                }),
+                self.db.select("agent_errors", {
+                    "select": "id,created_at",
+                    "created_at": f"gte.{since}",
+                }),
+                self.db.select("agent_memory", {
+                    "select": "id,created_at",
+                    "created_at": f"gte.{since}",
+                }),
+            )
+
+            done_tasks = [t for t in tasks if isinstance(t, dict) and t.get("status") == "done"]
+            ratings = [f["rating"] for f in feedback if isinstance(f, dict) and f.get("rating")]
+
+            tasks_by_day: dict[str, int] = {}
+            for t in tasks:
+                if isinstance(t, dict) and t.get("created_at"):
+                    day = t["created_at"][:10]
+                    tasks_by_day[day] = tasks_by_day.get(day, 0) + 1
+
+            return {
+                "period_days": days,
+                "total_tasks": len(tasks),
+                "done_tasks": len(done_tasks),
+                "avg_rating": round(sum(ratings) / len(ratings), 1) if ratings else None,
+                "ratings_count": len(ratings),
+                "total_errors": len(errors),
+                "total_memories": len(memories),
+                "tasks_by_day": dict(sorted(tasks_by_day.items())),
+            }
+        except Exception as e:
+            print(f"[Supabase] get_analytics_overview error: {e}")
+            return {}
+
+    # ── Delete Profile Entry ─────────────────────────────────────────────────
+
+    async def delete_profile(self, profile_id: int) -> bool:
+        if not self.db:
+            return False
+        try:
+            await self.db.delete("user_profile", {"id": profile_id})
+            return True
+        except Exception as e:
+            print(f"[Supabase] delete_profile error: {e}")
+            return False
+
     # ── Diary ─────────────────────────────────────────────────────────────────
 
     async def add_diary_entry(self, agent: str, event_type: str, content: str) -> None:
@@ -706,7 +859,7 @@ class StateManager:
             return []
         try:
             params: dict = {
-                "select": "id,title,horizon,priority,status,created_at,updated_at",
+                "select": "id,title,horizon,priority,status,result,action_items,review_status,assigned_agent,linked_task_id,created_at,updated_at",
                 "order": "created_at.desc",
                 "limit": str(limit),
             }
@@ -730,6 +883,30 @@ class StateManager:
             return True
         except Exception as e:
             print(f"[Supabase] update_scheduled_task_status error: {e}")
+            return False
+
+    async def get_scheduled_task_by_id(self, task_id: int) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.select("scheduled_tasks", {
+                "select": "id,title,horizon,priority,status,result,action_items,review_status,assigned_agent,linked_task_id,created_at,updated_at",
+                "id": f"eq.{task_id}",
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] get_scheduled_task_by_id error: {e}")
+            return None
+
+    async def update_scheduled_task(self, task_id: int, data: dict) -> bool:
+        if not self.db:
+            return False
+        try:
+            data["updated_at"] = datetime.utcnow().isoformat()
+            await self.db.update("scheduled_tasks", {"id": task_id}, data)
+            return True
+        except Exception as e:
+            print(f"[Supabase] update_scheduled_task error: {e}")
             return False
 
     # ── Quests ────────────────────────────────────────────────────────────────

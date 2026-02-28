@@ -245,7 +245,7 @@ class StateManager:
             return None
         try:
             rows = await self.db.select("tasks", {
-                "select": "id,created_at,content,status,summary,finished_at,assigned_agent,priority,tags,result,action_items,review_status",
+                "select": "id,created_at,content,status,summary,finished_at,assigned_agent,priority,tags",
                 "id": f"eq.{task_id}",
             })
             return rows[0] if rows else None

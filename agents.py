@@ -643,7 +643,7 @@ class StateManager:
         if not self.db:
             return []
         try:
-            feedback, memories, errors, tasks = await asyncio.gather(
+            feedback, memories, errors, messages = await asyncio.gather(
                 self.db.select("task_feedback", {
                     "select": "agent,rating",
                 }),
@@ -653,8 +653,8 @@ class StateManager:
                 self.db.select("agent_errors", {
                     "select": "agent,id",
                 }),
-                self.db.select("tasks", {
-                    "select": "id,status,assigned_agent",
+                self.db.select("messages", {
+                    "select": "role,id",
                 }),
             )
             stats = []
@@ -662,7 +662,7 @@ class StateManager:
                 agent_fb = [f for f in feedback if isinstance(f, dict) and f.get("agent") == key]
                 agent_mem = [m for m in memories if isinstance(m, dict) and m.get("agent") == key]
                 agent_err = [e for e in errors if isinstance(e, dict) and e.get("agent") == key]
-                agent_tasks = [t for t in tasks if isinstance(t, dict) and t.get("assigned_agent") == key]
+                agent_tasks = [m for m in messages if isinstance(m, dict) and m.get("role") == key]
                 ratings = [f["rating"] for f in agent_fb if f.get("rating")]
                 stats.append({
                     "agent": key,

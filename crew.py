@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
-PUBLISH_URL    = "https://web-production-4e42e.up.railway.app/api/articles"
+PUBLISH_URL    = os.getenv("DASHBOARD_URL", "https://office.mopofipofue.beget.app") + "/api/articles"
 
 
 # ── Custom Tool: Publish Article ──────────────────────────────────────────────

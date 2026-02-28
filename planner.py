@@ -40,7 +40,7 @@ OPENAI_KEY     = os.getenv("OPENAI_API_KEY", "")
 
 TZ = ZoneInfo(TZ_STR)
 
-DB_PATH = Path(__file__).parent / "planner.db"
+DB_PATH = Path(os.getenv("PLANNER_DB_PATH", str(Path(__file__).parent / "planner.db")))
 
 # ── State ─────────────────────────────────────────────────────────────────────
 # Single-user bot, so module-level state is fine.

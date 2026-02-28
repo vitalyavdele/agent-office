@@ -372,6 +372,18 @@ async def n8n_callback(request: Request):
         )
         logger.info(f"[idle] combined_len={len(combined)}, user_actions={user_actions}")
         if combined.strip():
+            # Сохраняем полный результат в tasks.summary (TEXT без ограничений)
+            save_task_id = payload.get("taskId")
+            if save_task_id and state.db:
+                try:
+                    await state.db.update("tasks", {"id": int(save_task_id)}, {
+                        "summary": combined,
+                        "status": "done",
+                        "finished_at": datetime.utcnow().isoformat(),
+                    })
+                    logger.info(f"[idle] Saved full result to tasks #{save_task_id}")
+                except Exception as e:
+                    logger.error(f"[idle] Failed to save result to tasks: {e}")
             # ВАЖНО: сначала link (ставит review_status=pending_review),
             # потом notify (ищет pending_review для создания квестов).
             # НЕ параллельно — иначе race condition.

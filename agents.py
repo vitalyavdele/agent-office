@@ -205,9 +205,9 @@ class StateManager:
         if not self.db or not task_id:
             return
         try:
+            # Only update status/finished_at — summary will be set by main.py with full result
             await self.db.update("tasks", {"id": task_id}, {
                 "status": "done",
-                "summary": summary[:500] if summary else "",
                 "finished_at": datetime.utcnow().isoformat(),
             })
         except Exception as e:

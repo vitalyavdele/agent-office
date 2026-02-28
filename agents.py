@@ -240,6 +240,19 @@ class StateManager:
             print(f"[Supabase] get_tasks error: {e}")
             return []
 
+    async def get_agent_task_by_id(self, task_id: int) -> Optional[dict]:
+        if not self.db:
+            return None
+        try:
+            rows = await self.db.select("tasks", {
+                "select": "id,created_at,content,status,summary,finished_at,assigned_agent,priority,tags,result,action_items,review_status",
+                "id": f"eq.{task_id}",
+            })
+            return rows[0] if rows else None
+        except Exception as e:
+            print(f"[Supabase] get_agent_task_by_id error: {e}")
+            return None
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def agent_states(self) -> list[dict]:

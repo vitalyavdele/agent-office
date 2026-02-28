@@ -391,6 +391,14 @@ async def api_tasks():
     return JSONResponse({"tasks": tasks})
 
 
+@app.get("/api/agent-tasks/{task_id}")
+async def api_agent_task_detail(task_id: int):
+    task = await state.get_agent_task_by_id(task_id)
+    if not task:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse({"task": task})
+
+
 # ── REST: diary ───────────────────────────────────────────────────────────────
 
 @app.get("/api/diary")

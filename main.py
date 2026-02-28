@@ -1590,8 +1590,14 @@ async def _notify_user_task_done(result: str):
             await broadcast({"type": "quest_created", "quest": quest})
             asyncio.create_task(tg_bot.notify_quest(quest))
 
-        # Create individual quests for each user action — WITH input fields
-        for i, action in enumerate(user_actions):
+        # Create individual quests for each user action — max 3, only if input is truly needed
+        input_actions = [a for a in user_actions if isinstance(a, dict) and a.get("input_required")]
+        if not input_actions:
+            # Only create action quests for string actions that look like they need user input
+            input_actions = [a for a in user_actions if isinstance(a, str) and any(
+                kw in a.lower() for kw in ["укажи", "введи", "добавь", "настрой", "предоставь", "provide", "enter"]
+            )]
+        for i, action in enumerate(input_actions[:3]):  # max 3 action quests
             action_text = action if isinstance(action, str) else action.get("text", "")
             if not action_text:
                 continue

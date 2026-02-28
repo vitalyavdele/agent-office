@@ -181,6 +181,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "https://dash.mopofipofue.beget.app",
+        "http://85.198.64.70:3000",
+        "http://85.198.64.70",
     ],
     allow_origin_regex=r"https://.*\.(vercel\.app|beget\.app)",
     allow_credentials=True,

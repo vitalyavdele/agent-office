@@ -129,6 +129,7 @@ state = StateManager(
 
 N8N_MANAGER_WEBHOOK = os.getenv("N8N_MANAGER_WEBHOOK", "")
 ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY      = os.getenv("OPENAI_API_KEY", "")
 clients: set[WebSocket] = set()
 
 # Accumulate worker results during a task execution
@@ -1236,9 +1237,11 @@ async def api_chat_direct(request: Request):
     if agent not in AGENT_DEFS:
         return JSONResponse({"ok": False, "error": f"unknown agent: {agent}"}, status_code=400)
 
-    api_key = ANTHROPIC_API_KEY
+    api_key = OPENAI_API_KEY or ANTHROPIC_API_KEY
     if not api_key:
-        return JSONResponse({"ok": False, "error": "ANTHROPIC_API_KEY not set"}, status_code=500)
+        return JSONResponse({"ok": False, "error": "No LLM API key configured"}, status_code=500)
+
+    use_openai = bool(OPENAI_API_KEY)
 
     # Load memory context and chat history
     memory_context = await state.get_memory_context(agent)
@@ -1265,33 +1268,51 @@ async def api_chat_direct(request: Request):
     # Save user message
     await state.save_direct_message(agent, "direct_user", message)
 
-    # Call Anthropic API
+    # Choose model based on agent type (researcher/qa → mini, others → full)
+    openai_model = "gpt-4o-mini" if agent in ("researcher", "qa") else "gpt-4o"
+
+    # Call LLM API (OpenAI preferred, Anthropic fallback)
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-6",
-                    "max_tokens": 1024,
-                    "system": system,
-                    "messages": api_messages,
-                },
-            )
-            if r.status_code != 200:
-                return JSONResponse({"ok": False, "error": f"Anthropic {r.status_code}: {r.text[:300]}"}, status_code=502)
-            data = r.json()
-            content = data.get("content")
-            if content and isinstance(content, list) and len(content) > 0:
-                reply = content[0].get("text", "")
+            if use_openai:
+                r = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": openai_model,
+                        "max_tokens": 1024,
+                        "messages": [{"role": "system", "content": system}] + api_messages,
+                    },
+                )
+                if r.status_code != 200:
+                    return JSONResponse({"ok": False, "error": f"OpenAI {r.status_code}: {r.text[:300]}"}, status_code=502)
+                data = r.json()
+                reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
-                reply = ""
+                r = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-6",
+                        "max_tokens": 1024,
+                        "system": system,
+                        "messages": api_messages,
+                    },
+                )
+                if r.status_code != 200:
+                    return JSONResponse({"ok": False, "error": f"Anthropic {r.status_code}: {r.text[:300]}"}, status_code=502)
+                data = r.json()
+                content_blocks = data.get("content")
+                reply = content_blocks[0].get("text", "") if content_blocks else ""
             if not reply:
-                return JSONResponse({"ok": False, "error": f"Empty response: {str(data)[:500]}"}, status_code=502)
+                return JSONResponse({"ok": False, "error": f"Empty LLM response"}, status_code=502)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"LLM error: {e}"}, status_code=500)
 

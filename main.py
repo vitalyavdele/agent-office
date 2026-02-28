@@ -275,6 +275,9 @@ async def n8n_callback(request: Request):
     except Exception:
         return JSONResponse({"ok": False, "error": "invalid JSON"}, status_code=400)
 
+    # Capture _current_task_id BEFORE apply_callback clears it on manager idle
+    captured_task_id = state._current_task_id
+
     await state.apply_callback(broadcast, payload)
     await _maybe_notify_tg(payload)
 
@@ -372,8 +375,9 @@ async def n8n_callback(request: Request):
         )
         logger.info(f"[idle] combined_len={len(combined)}, user_actions={user_actions}")
         if combined.strip():
-            # Сохраняем полный результат в tasks.summary (используем _current_task_id, а не n8n taskId)
-            save_task_id = state._current_task_id
+            # Сохраняем полный результат в tasks.summary
+            # Используем captured_task_id (захваченный ДО apply_callback, который обнуляет _current_task_id)
+            save_task_id = captured_task_id
             if save_task_id and state.db:
                 try:
                     await state.db.update("tasks", {"id": int(save_task_id)}, {
